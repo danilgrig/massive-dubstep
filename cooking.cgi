@@ -2,12 +2,10 @@
 
 use strict;
 use warnings;
-use UTF8;
 
 use Template;
 use CGI;
 use DBI;
-
 
 our $result = main();
 
