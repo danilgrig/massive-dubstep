@@ -12,18 +12,18 @@
 		<table border="1" style="float: left">
 			<tr>
 				<td>Name </td>
-				<td>Edok </td>
-				<td>Cooker </td>
-				<td>Score </td>
+				<td>Mouth </td>
+				<td>Cook </td>
 				<td>Feeding </td>
+				<td>Score </td>
 			</tr>
 			[% FOREACH p = people.keys %]
 			<tr>
 				<td>[% p %] </td>
 				<td><input type="checkbox" class="checkbox" value="[% p %]"/> [% people.$p.eaten %] </td>
 				<td><input type="radio" class="radio" name = "radio" value="[% p %]" /> [% people.$p.cooked %] </td>
-				<td>[% people.$p.ratio %] </td>
 				<td>[% people.$p.fed %] </td>
+				<td>[% people.$p.ratio %] </td>
 			</tr>
 			[% END %]
 		</table>
