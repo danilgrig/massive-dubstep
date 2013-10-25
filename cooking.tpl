@@ -9,7 +9,7 @@
 	[% FOREACH err = errors %]
 		<li>  [% err %] </>
 	[% END %]
-		<table border="1"  align="left">
+		<table border="1" style="float: left">
 			<tr>
 				<td>Name </td>
 				<td>Edok </td>
@@ -42,14 +42,16 @@
 			<tr bgcolor="#FFFFFF">
 				<td>[% log.$l.time %] </td>
 				<td>[% log.$l.cook %] </td>
-				<td>[% FOREACH i = log.$l.mouths.keys %][% log.$l.mouths.$i %] [% END %] </td>
-				<td><button value="[% l %]" type="button" onclick="window.location=document.URL+'?event=delete&id='+this.value;return false;">delete </button> </td>
+				<td>[% FOREACH i = log.$l.mouths %][% i %] [% END %] </td>
+				<td><button style="border-radius: 10px" value="[% l %]" type="button" onclick="window.location=document.URL+'?event=delete&id='+this.value;return false;">delete </button> </td>
 			</tr>
 			[% END %]
 		</table>
 	</body>
 
 <script type=text/javascript>
+
+
 
 function send() {
 	var s = document.URL;
@@ -90,7 +92,7 @@ function send() {
 		return true;
 	}
 	if (j2 == 0) {
-		alert("It was soooo damn TASTY that even amazing chef " + radios[j1].value + " hadn't eaten it!\nAm I right?");
+		alert("It was soooo damn TASTY that even amazing chef " + radios[j1-1].value + " hadn't eaten it!\nAm I right?");
 		return true;
 	}
 	window.location = s;
