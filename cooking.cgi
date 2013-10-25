@@ -43,8 +43,8 @@ sub main {
 	if ($event eq 'register') {
 		return do_registration($result, $dbh);
 	}
-	if ($event eq 'cancel') {
-		return do_cancel($result, $dbh);
+	if ($event eq 'delete') {
+		return do_delete($result, $dbh);
 	}
 	if ($event eq 'clearstats') {
 		return do_clearstats($result, $dbh);
@@ -65,7 +65,7 @@ sub main {
 	and return $result;
 
 	while (my($name, $cooked, $eaten, $fed, $ratio) = $sth->fetchrow_array() ) {
-		$result->{'data'}->{$name}->{'ratio'} = $ratio;
+		$result->{'data'}->{$name}->{'ratio'} = sprintf("%.2f", $ratio);
 		$result->{'data'}->{$name}->{'cooked'} = $cooked;
 		$result->{'data'}->{$name}->{'eaten'} = $eaten;
 		$result->{'data'}->{$name}->{'fed'} = $fed;
@@ -88,7 +88,7 @@ sub main {
 	while (my($id, $cook, $mouths, $time) = $sth->fetchrow_array() ) {
 		$result->{'log'}->{$id}->{'time'} = get_time($time);
 		$result->{'log'}->{$id}->{'cook'} = $cook;
-		$result->{'log'}->{$id}->{'mouths'} = split(',', $mouths);
+		@{$result->{'log'}->{$id}->{'mouths'} } = split(',', $mouths);
 	}
 
 	return $result;
@@ -110,10 +110,9 @@ sub do_clearstats {
 	return $result;
 }
 
-sub do_cancel {
+sub do_delete {
 	my $result = shift;
 	my $dbh = shift;
-	return $result;
 
 	my $id = get_param('id');
 	my $sth = $dbh->prepare("
@@ -130,6 +129,10 @@ sub do_cancel {
 	and return $result;
 
 	my($cook, $mouths) = $sth->fetchrow_array();
+	unless ($cook){
+		push(@{$result->{'errors'} }, "It havn't happened!");
+		return $result;
+	}
 
 	$dbh->do("
 		delete 
@@ -145,7 +148,7 @@ sub do_cancel {
 	my $n = scalar(@mouths);
 	my $k = 1.0 / $n;
 	my @mouths_quoted = ();
-	push(@mouths_quoted, $_) foreach @mouths;
+	push(@mouths_quoted, "'$_'") foreach @mouths;
 	$mouths = '(' . join(', ', @mouths_quoted) . ')';
 	$dbh->do("
 		update 
@@ -157,18 +160,18 @@ sub do_cancel {
 		where
 			name='$cook'
 	")
-	or push(@{$result->{'errors'} }, "Can't do update of MySQL server: $DBI::errstr")
+	or push(@{$result->{'errors'} }, "Can't do update cook in do_delete: $DBI::errstr")
 	and return $result;
 	$dbh->do("
 		update 
 			People
 		set 
 			ratio = ratio + $k,
-			eated = eated - 1
+			eaten = eaten - 1
 		where
 			name in $mouths
 	")
-	or push(@{$result->{'errors'} }, "Can't do update of MySQL server: $DBI::errstr")
+	or push(@{$result->{'errors'} }, "Can't do update mouths in do_delete: $DBI::errstr")
 	and return $result;
 	
 	push(@{$result->{'messages'} }, "Event has been canceled");
@@ -276,8 +279,9 @@ sub do_registration {
 
 sub get_time {
 	my $time = shift;
-	my($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($time);
-	return "$year.$mon.$mday:$hour.$min";
+	return $time;
+#	my($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($time);
+#	return "$year.$mon.$mday:$hour.$min";
 }
 
 sub redirect {
