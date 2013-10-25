@@ -27,7 +27,7 @@ sub main {
 	my $result = {};
 	$result->{'errors'} = [];
 	$result->{'messages'} = [];
-	$result->{'log'} = [];
+	$result->{'log'} = {};
 	$result->{'data'} = {};
 
 	my $dsn = "DBI:mysql:database=stat_cooking;host=127.0.0.1;port=3306";
@@ -86,9 +86,9 @@ sub main {
 	and return $result;
 
 	while (my($id, $cook, $mouths, $time) = $sth->fetchrow_array() ) {
-		$result->{'log'}->{$id}->{'time'} = $time;
+		$result->{'log'}->{$id}->{'time'} = get_time($time);
 		$result->{'log'}->{$id}->{'cook'} = $cook;
-		$result->{'log'}->{$id}->{'mouths'} = $mouths;
+		$result->{'log'}->{$id}->{'mouths'} = split(',', $mouths);
 	}
 
 	return $result;
@@ -113,6 +113,7 @@ sub do_clearstats {
 sub do_cancel {
 	my $result = shift;
 	my $dbh = shift;
+	return $result;
 
 	my $id = get_param('id');
 	my $sth = $dbh->prepare("
@@ -127,6 +128,9 @@ sub do_cancel {
 	$sth->execute()
 	or push(@{$result->{'errors'} }, "Can't do select log of MySQL server: $DBI::errstr")
 	and return $result;
+
+	my($cook, $mouths) = $sth->fetchrow_array();
+
 	$dbh->do("
 		delete 
 		from 
@@ -136,12 +140,11 @@ sub do_cancel {
 	")
 	or push(@{$result->{'errors'} }, "Can't do delete from log of MySQL server: $DBI::errstr")
 	and return $result;
-
-	my($cook, $mouths) = $sth->fetchrow_array();
+	
 	my @mouths = split(',', $mouths);
 	my $n = scalar(@mouths);
 	my $k = 1.0 / $n;
-	my @mouths_quoted;
+	my @mouths_quoted = ();
 	push(@mouths_quoted, $_) foreach @mouths;
 	$mouths = '(' . join(', ', @mouths_quoted) . ')';
 	$dbh->do("
@@ -194,7 +197,8 @@ sub do_cook {
 	}
 
 	my $cooker = get_param("cook");
-	my @eats = split(',', get_param("mouths"));
+	my $mouths = get_param("mouths");
+	my @eats = split(',', $mouths);
 	my $n = scalar(@eats);
 	if ($n == 0) {
 		push(@{$result->{'errors'} }, "Nobody eated O_o?!");
@@ -202,7 +206,6 @@ sub do_cook {
 	}
 	my $k = 1.0 / $n;
 	
-	#push(@{$result->{'errors'} }, "update People set ratio = ratio + 1, cooked = cooked + 1, fed = fed + $n where name='$cooker'");
 	$dbh->do("
 		update 
 			People
@@ -218,7 +221,6 @@ sub do_cook {
 	
 
 	foreach my $eater (@eats) {
-		#push(@{$result->{'errors'} }, "update People set ratio = ratio - $k, eaten = eaten + 1, where name='$eater'");
 		$dbh->do("
 			update 
 				People
@@ -231,6 +233,16 @@ sub do_cook {
 		or push(@{$result->{'errors'} }, "Can't do update of MySQL server: $DBI::errstr")
 		and return $result;
 	}
+
+	$dbh->do("
+		insert
+			Log
+		set 
+			cook = '$cooker',
+			mouths = '$mouths'
+	")
+	or push(@{$result->{'errors'} }, "Can't insert into Log: $DBI::errstr")
+	and return $result;
 
 	push(@{$result->{'messages'} }, "Cooking detected!");
 
@@ -260,6 +272,12 @@ sub do_registration {
 	
 	redirect();
 	return $result;
+}
+
+sub get_time {
+	my $time = shift;
+	my($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($time);
+	return "$year.$mon.$mday:$hour.$min";
 }
 
 sub redirect {
