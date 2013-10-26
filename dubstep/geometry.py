@@ -77,6 +77,10 @@ class Line3:
         ret = (self.p1 == other.p1 and self.p2 == other.p2) or (self.p1 == other.p2 and self.p2 == other.p1)
         return ret
 
+    def __iter__(self):
+        yield self.p1
+        yield self.p2
+
     def length(self):
         dx = self.p1.x - self.p2.x
         dy = self.p1.y - self.p2.y
@@ -121,6 +125,10 @@ class Line2:
     def __eq__(self, other):
         ret = (self.p1 == other.p1 and self.p2 == other.p2) or (self.p1 == other.p2 and self.p2 == other.p1)
         return ret
+
+    def __iter__(self):
+        yield self.p1
+        yield self.p2
 
     def length(self):
         dx = self.p1.x - self.p2.x
@@ -167,23 +175,13 @@ class Vector3:
         return s
 
 
-class Vector2:
-    def __init__(self, p1=Point2(), p2=Point2()):
-        self.x = p1.x - p2.x
-        self.y = p1.y - p2.y
-
-    def __str__(self):
-        s = 'Vector3(%f, %f) ' % (self.x, self.y)
-        return s
-
-
 class Facet:
     def __init__(self, p1, p2, p3):
         self.points = (p1, p2, p3, p1)
         v1 = Vector3(p2, p1)
         v2 = Vector3(p3, p1)
         n = cross3(v1, v2)
-        self.normal = Vector2(Point2(n.x, n.y))
+        self.normal = Vector3(Point3(n.x, n.y))
 
     def __str__(self):
         s = 'normal: ' + str(self.normal)
@@ -281,7 +279,7 @@ class Facet:
         else:
             logging.error("Error in intersect: n > 1")
 
-        v = cross2(self.normal, Vector2(line.p2, line.p1))
+        v = cross2(self.normal, Vector3(Point3(line.p2.x, line.p2.y), Point3(line.p1.x, line.p1.y)))
         if equal(v, 0.0):
             pass
 #            logging.error("v == 0")

@@ -62,8 +62,8 @@ class GLFrame(wx.Frame):
         self.canvas.Bind(wx.EVT_PAINT, self.processPaintEvent)
 
         #model = stl_utils.StlModel('pudge.stl')
-        self.model = stl_utils.StlModel('Double_Helix.stl')
-        self.model.changeDirection("+X")
+        self.model = stl_utils.StlModel('stl_examples\\pencildome.stl')
+        self.model.changeDirection("+Z")
         self.model.zoom(1)
    #
     # Canvas Proxy Methods
@@ -129,7 +129,7 @@ class GLFrame(wx.Frame):
         try:
             glClear(GL_COLOR_BUFFER_BIT)
             glBegin(GL_LINES)
-            for line in Slice(self.model, 7.5).fully_scan():
+            for line in Slice(self.model, 10).fully_scan():
                 glVertex(convertXToOpenGL(line.p1.x), convertYToOpenGL(line.p1.y))
                 glVertex(convertXToOpenGL(line.p2.x), convertYToOpenGL(line.p2.y))
             glEnd()

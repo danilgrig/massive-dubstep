@@ -1,11 +1,14 @@
+from time import time
 from geometry import *
 import stl_utils
+from interval_tree import IntervalTree
 logging.basicConfig(format=u'%(levelname)-8s [%(asctime)s] %(message)s',
                     level=logging.DEBUG, filename=u'sliser.log')
 
-STEP    = 0.5
-EPS     = 0.01
-MAXSIZE = 300
+STEP      = 0.2
+EPS       = 0.01
+MAXSIZE   = 300
+MAXFACETS = 10000
 
 
 class SizeSliceError(Exception):
@@ -20,15 +23,64 @@ class Slice:
     def __init__(self, model, z):
         self.z = z
         self.lines = []
+        self.sorted_y = []
+        self.ex = {'minx': MAXSIZE, 'maxx': -MAXSIZE,
+                   'miny': MAXSIZE, 'maxy': -MAXSIZE}
         if model.max_size() > MAXSIZE:
             logging.error("Cant slice %.2f model. The max size is %.2f" % (model.max_size(), MAXSIZE))
             raise SizeSliceError("Cant slice so big model")
+        if len(model.facets) > MAXFACETS:
+            logging.error("Cant slice %d facets. The max supposed numbers of facets is %.2f" %
+                          (len(model.facets), MAXFACETS))
+            raise SizeSliceError("Cant slice so big model")
         for facet in model.facets:
             if facet.isIntersect(z):
-                self.lines.append(facet.intersect(z))
+                line = facet.intersect(z)
+                if line.length > EPS:
+                    self.lines.append(line)
+
+        for line in self.lines:
+            for p in line:
+                self.ex['minx'] = min(self.ex['minx'], p.x)
+                self.ex['maxx'] = max(self.ex['maxx'], p.x)
+                self.ex['miny'] = min(self.ex['miny'], p.y)
+                self.ex['maxy'] = max(self.ex['maxy'], p.y)
+
+        for line in self.lines:
+            self.sorted_y.append(line.p1.y)
+            self.sorted_y.append(line.p2.y)
+        self.sorted_y.sort()
+
+        #making interval tree for fast search intersected lines
+        self.tree_x = IntervalTree(len(self.sorted_y))
+        for line in self.lines:
+            l = self.find_y(line.p1.y, False)
+            r = self.find_y(line.p2.y, False)
+            if l > r:
+                (l, r) = (r, l)
+            self.tree_x.push(l, r - 1, line)
 
     def __len__(self):
         return len(self.lines)
+
+    #Used it for find first index, self.sorted_y[idx] > y.
+    #If there are numbers, equal with y, answer may be any index of them.
+    def find_y(self, y, asrt=True):
+        l = 0
+        r = len(self.sorted_y)
+        while r > l:
+            m = (r + l) // 2
+            if asrt:
+                if equal(self.sorted_y[m], y):
+                    logging.info('You want find_y(%.3f) with Assert mode, but there are such y' % y)
+                    assert 0
+            if self.sorted_y[m] > y:
+                r = m
+            else:
+                l = m + 1
+
+        # l == r
+        return l
 
     #simple fully scan each STEP row
     #returns list[Line2]
@@ -36,23 +88,16 @@ class Slice:
         if len(self.lines) <= 1:
             return []
 
-        miny = self.lines[0].p1.y
-        maxy = self.lines[0].p1.y
-        for line in self.lines:
-            miny = min(miny, line.p1.y)
-            maxy = max(maxy, line.p1.y)
-            miny = min(miny, line.p2.y)
-            maxy = max(maxy, line.p2.y)
+        miny = self.ex['miny']
+        maxy = self.ex['maxy']
 
-        y = miny
+        y = miny + EPS
         ans = []
         number_tries = 0
         while y < maxy:
             if number_tries > 3:
                 logging.error("I tired to tries so much! ;(")
-                #raise stl_utils.FormatSTLError('Too much tries have done. Enough!')
-                y += STEP
-                number_tries = 0
+                raise stl_utils.FormatSTLError('Cant slice')
             try:
                 ans.extend(self.get_lines_in_row(y))
                 y += STEP
@@ -65,6 +110,7 @@ class Slice:
 
     #scans only significant rows
     #returns list[tuple[Point2]]
+    #it wasn't a good idea. no profit
     def intellectual_scan(self):
         if len(self.lines) <= 1:
             return []
@@ -104,15 +150,14 @@ class Slice:
     def get_lines_in_row(self, y):
         ans = []
         intersects = []
+        index = self.find_y(y)
 
-        for line in self.lines:
-            if line.failed(y):
-                logging.info('get_lines_in_row:  Met vertex on %f slice in %f row. Skipped.' % (self.z, y))
-                assert 0
-
-            #not failed yet
+        for line in self.tree_x.get(index):
             if line.isIntersect(y):
                 intersects.append(line.calcIntersect(y))
+            else:
+                logging.info('get_lines_in_row: It can not be! ;(')
+                assert 0
 
         if len(intersects) % 2 == 1:
             logging.error('get_lines_in_row: I have odd number of intersects %f slice %f row. Trying to increment less.' % (self.z, y))
@@ -181,9 +226,13 @@ class Slice:
 if __name__ == '__main__':
 #    model = stl_utils.StlModel('C:\\calibration\\pudge.stl')
 #    model.zoom(0.1)
-    model = stl_utils.StlModel('C:\\calibration\\pencildome.stl')
+    model = stl_utils.StlModel('stl_examples\\pencildome.stl')
     model.zoom(1)
-    slice = Slice(model, 30)
-    for line in slice.make_correct_loops():
-        print ' '.join(map(str, list(line)))
+    slice = Slice(model, 10)
+    start = time()
+    for line in slice.fully_scan():
+        print line
+#        print ' '.join(map(str, list(line)))
+    end = time()
+    print "time = %f" % (end - start)
 
