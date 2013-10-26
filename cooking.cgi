@@ -7,17 +7,20 @@ use Template;
 use CGI;
 use DBI;
 
+open(LOG, ">>/var/www/cgi-bin/log.txt");
+
 our $result = main();
 
 our $tpl = new Template({
 	INCLUDE_PATH=>'/var/www/cgi-bin'
 });
 our $vars={
-	title    => 'Cook helper',
-	errors   => $result->{'errors'},
-	messages => $result->{'messages'},
-	log      => $result->{'log'},
-	people   => $result->{'data'},
+	title        => 'Cook helper',
+	errors       => $result->{'errors'},
+	messages     => $result->{'messages'},
+	old_messages => $result->{'old_messages'},
+	log          => $result->{'log'},
+	people       => $result->{'data'},
 };
 
 print "Content-type: text/html\n\n";
@@ -26,6 +29,7 @@ $tpl->process("cooking.tpl", $vars);
 sub main {
 	my $result = {};
 	$result->{'errors'} = [];
+	$result->{'old_messages'} = [];
 	$result->{'messages'} = [];
 	$result->{'log'} = {};
 	$result->{'data'} = {};
@@ -45,6 +49,9 @@ sub main {
 	}
 	if ($event eq 'delete') {
 		return do_delete($result, $dbh);
+	}
+	if ($event eq 'restore') {
+		return do_restore($result, $dbh);
 	}
 	if ($event eq 'clearstats') {
 		return do_clearstats($result, $dbh);
@@ -77,7 +84,8 @@ sub main {
 			id,
 			cook,
 			mouths,
-			time
+			time,
+			status
 		from 
 			Log
 	");
@@ -85,12 +93,18 @@ sub main {
 	or push(@{$result->{'errors'} }, "Can't do select log of MySQL server: $DBI::errstr")
 	and return $result;
 
-	while (my($id, $cook, $mouths, $time) = $sth->fetchrow_array() ) {
-		$result->{'log'}->{$id}->{'time'} = get_time($time);
+	while (my($id, $cook, $mouths, $time, $status) = $sth->fetchrow_array() ) {
+		$result->{'log'}->{$id}->{'time'} = $time;
 		$result->{'log'}->{$id}->{'cook'} = $cook;
+		$result->{'log'}->{$id}->{'status'} = $status;
 		@{$result->{'log'}->{$id}->{'mouths'} } = split(',', $mouths);
 	}
 
+	my $msg = get_param('msg');
+	if ($msg) {
+		push(@{$result->{'old_messages'} }, $_) foreach split(',', $msg);
+	}
+	
 	return $result;
 }
 
@@ -106,7 +120,9 @@ sub do_clearstats {
 	or push(@{$result->{'errors'} }, "Can't do update of MySQL server: $DBI::errstr")
 	and return $result;
 
-	redirect();
+	push(@{$result->{'messages'} }, "Clearstats! YES!!!");
+	
+	redirect($result);
 	return $result;
 }
 
@@ -123,6 +139,8 @@ sub do_delete {
 			Log
 		where 
 			id = $id
+		and
+			status = 1
 	");
 	$sth->execute()
 	or push(@{$result->{'errors'} }, "Can't do select log of MySQL server: $DBI::errstr")
@@ -134,49 +152,69 @@ sub do_delete {
 		return $result;
 	}
 
+	update_score($result, $dbh, $cook, $mouths, '-')
+	or return $result;
+
 	$dbh->do("
-		delete 
+		update
+			Log
+		set
+			status = 2
+		where
+			id = $id
+	")
+	or push(@{$result->{'errors'} }, "Can't do update Logr: $DBI::errstr")
+	and return $result;
+	
+	push(@{$result->{'messages'} }, "Event has been deleted");
+
+	redirect($result);
+	return $result;
+}
+
+sub do_restore {
+	my $result = shift;
+	my $dbh = shift;
+
+	my $id = get_param('id');
+	my $sth = $dbh->prepare("
+		select 
+			cook,
+			mouths
 		from 
 			Log
 		where 
 			id = $id
-	")
-	or push(@{$result->{'errors'} }, "Can't do delete from log of MySQL server: $DBI::errstr")
+		and
+			status = 2
+	");
+	$sth->execute()
+	or push(@{$result->{'errors'} }, "Can't do select log of MySQL server: $DBI::errstr")
 	and return $result;
-	
-	my @mouths = split(',', $mouths);
-	my $n = scalar(@mouths);
-	my $k = 1.0 / $n;
-	my @mouths_quoted = ();
-	push(@mouths_quoted, "'$_'") foreach @mouths;
-	$mouths = '(' . join(', ', @mouths_quoted) . ')';
-	$dbh->do("
-		update 
-			People
-		set 
-			ratio = ratio - 1,
-			cooked = cooked - 1,
-			fed = fed - $n
-		where
-			name='$cook'
-	")
-	or push(@{$result->{'errors'} }, "Can't do update cook in do_delete: $DBI::errstr")
-	and return $result;
-	$dbh->do("
-		update 
-			People
-		set 
-			ratio = ratio + $k,
-			eaten = eaten - 1
-		where
-			name in $mouths
-	")
-	or push(@{$result->{'errors'} }, "Can't do update mouths in do_delete: $DBI::errstr")
-	and return $result;
-	
-	push(@{$result->{'messages'} }, "Event has been canceled");
 
-	redirect();
+	my($cook, $mouths) = $sth->fetchrow_array();
+	unless ($cook){
+		push(@{$result->{'errors'} }, "It havn't happened!");
+		return $result;
+	}
+
+	update_score($result, $dbh, $cook, $mouths, '+')
+	or return $result;
+
+	$dbh->do("
+		update
+			Log
+		set
+			status = 1
+		where
+			id = $id
+	")
+	or push(@{$result->{'errors'} }, "Can't do update Logr: $DBI::errstr")
+	and return $result;
+	
+	push(@{$result->{'messages'} }, "Event has been restored");
+
+	redirect($result);
 	return $result;
 }
 
@@ -199,49 +237,16 @@ sub do_cook {
 		push(@names, $name);
 	}
 
-	my $cooker = get_param("cook");
+	my $cook = get_param("cook");
 	my $mouths = get_param("mouths");
-	my @eats = split(',', $mouths);
-	my $n = scalar(@eats);
-	if ($n == 0) {
-		push(@{$result->{'errors'} }, "Nobody eated O_o?!");
-		return $result;
-	}
-	my $k = 1.0 / $n;
-	
-	$dbh->do("
-		update 
-			People
-		set 
-			ratio = ratio + 1,
-			cooked = cooked + 1,
-			fed = fed + $n
-		where
-			name='$cooker'
-	")
-	or push(@{$result->{'errors'} }, "Can't do update of MySQL server: $DBI::errstr")
-	and return $result;
-	
-
-	foreach my $eater (@eats) {
-		$dbh->do("
-			update 
-				People
-			set 
-				ratio = ratio - $k,
-				eaten = eaten + 1
-			where
-				name='$eater'
-		")
-		or push(@{$result->{'errors'} }, "Can't do update of MySQL server: $DBI::errstr")
-		and return $result;
-	}
+	update_score($result, $dbh, $cook, $mouths, '+')
+	or return $result;
 
 	$dbh->do("
 		insert
 			Log
 		set 
-			cook = '$cooker',
+			cook = '$cook',
 			mouths = '$mouths'
 	")
 	or push(@{$result->{'errors'} }, "Can't insert into Log: $DBI::errstr")
@@ -249,7 +254,7 @@ sub do_cook {
 
 	push(@{$result->{'messages'} }, "Cooking detected!");
 
-	redirect();
+	redirect($result);
 	return $result;
 }
 
@@ -273,19 +278,15 @@ sub do_registration {
 
 	push(@{$result->{'messages'} }, "$name has been registered");
 	
-	redirect();
+	redirect($result);
 	return $result;
 }
 
-sub get_time {
-	my $time = shift;
-	return $time;
-#	my($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime($time);
-#	return "$year.$mon.$mday:$hour.$min";
-}
-
 sub redirect {
+	my $result = shift;
+
 	my ($url) = ($0 =~ m@/([^/]*)$@);
+	$url .= '?msg=' . join(',', @{$result->{'messages'} }) if $result->{'messages'};
 
 	print CGI::redirect($url);
 	exit(0);
@@ -303,4 +304,51 @@ sub get_param {
 	my $key = shift;
 
 	return scalar(CGI::param($key));
+}
+
+sub update_score {
+	my $result = shift;
+	my $dbh = shift;
+	my $cook = shift;
+	my $mouths = shift;
+	my $sign = shift;
+
+	my $nsign = $sign eq '+' ? '-' : '+';
+	my @eats = split(',', $mouths);
+	my $n = scalar(@eats);
+	if ($n == 0) {
+		push(@{$result->{'errors'} }, "Nobody eated O_o?!");
+		return 0;
+	}
+	my $k = 1.0 / $n;
+	
+	$dbh->do("
+		update 
+			People
+		set 
+			ratio = ratio $sign 1,
+			cooked = cooked $sign 1,
+			fed = fed $sign $n
+		where
+			name='$cook'
+	")
+	or push(@{$result->{'errors'} }, "Can't do update of MySQL server: $DBI::errstr")
+	and return 0;
+	
+
+	foreach my $eater (@eats) {
+		$dbh->do("
+			update 
+				People
+			set 
+				ratio = ratio $nsign $k,
+				eaten = eaten $sign 1
+			where
+				name='$eater'
+		")
+		or push(@{$result->{'errors'} }, "Can't do update of MySQL server: $DBI::errstr")
+		and return 0;
+	}
+	
+	return 1;
 }

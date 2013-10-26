@@ -7,7 +7,10 @@
 	
 	<body>
 	[% FOREACH err = errors %]
-		<li>  [% err %] </>
+		<li>  error: [% err %] </>
+	[% END %]
+	[% FOREACH msg = old_messages %]
+		<li>  message: [% msg %] </>
 	[% END %]
 		<table border="1" style="float: left">
 			<tr>
@@ -43,7 +46,12 @@
 				<td>[% log.$l.time %] </td>
 				<td>[% log.$l.cook %] </td>
 				<td>[% FOREACH i = log.$l.mouths %][% i %] [% END %] </td>
+				[% IF log.$l.status == 1 %]
 				<td><button style="border-radius: 10px" value="[% l %]" type="button" onclick="window.location=document.URL+'?event=delete&id='+this.value;return false;">delete </button> </td>
+				[% END %]
+				[% IF log.$l.status == 2 %]
+				<td><button style="border-radius: 10px" value="[% l %]" type="button" onclick="window.location=document.URL+'?event=restore&id='+this.value;return false;">restore </button> </td>
+				[% END %]
 			</tr>
 			[% END %]
 		</table>
