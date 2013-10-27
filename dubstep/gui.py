@@ -2,6 +2,7 @@ import wx
 import os
 import stl_utils
 import slice_utils
+import geometry
 
 try:
     from wx import glcanvas
@@ -18,18 +19,24 @@ except ImportError, e:
     sys.exit()
 
 
+def convertXToOpenGL(x):
+    return x / 100
+
+
+def convertYToOpenGL(y):
+    return y / 100
+
 
 class PathCanvas(glcanvas.GLCanvas):
 
-    def __init__(self, parent, stl_model, slice_array):
+    def __init__(self, parent, loops):
         print "path init"
-        glcanvas.GLCanvas.__init__(self, parent, -1)
+        glcanvas.GLCanvas.__init__(self, parent, -1, size=(400,400))
 
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.OnEraseBackground)
         self.Bind(wx.EVT_SIZE, self.OnSize)
         self.Bind(wx.EVT_PAINT, self.OnPaint)
-        self.slice_array = slice_array
-        self.stl_model = stl_model
+        self.loops = loops
 
     def OnEraseBackground(self, event):
         pass
@@ -45,19 +52,17 @@ class PathCanvas(glcanvas.GLCanvas):
     def OnPaint(self, event):
         # TODO Should be changed
         self.SetCurrent()
-        glClearColor(0, 0, 0, 1)
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        glColor3f(1.0, 1.0, 1.0)
-        if self.stl_model.sliced:
-            glBegin(GL_LINES)
-            for line in self.slice_array:
-                print line
-                glVertex(0, 0)
-                glVertex(1, 1)
-                #glVertex(line.p1.x/20, line.p1.y/20)
-                #glVertex(line.p2.x/20, line.p2.y/20)
+        glClear(GL_COLOR_BUFFER_BIT)
+        for loop in self.loops:
+            glBegin(GL_POLYGON)
+            if geometry.counter_clock_wise(loop):
+                glColor3d(1, 1, 1)
+            else:
+                glColor3d(0, 0, 0)
+            for p in loop:
+                glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
             glEnd()
-            self.SwapBuffers()
+        self.SwapBuffers()
 
     def setupProjection(self):
         diameter = self.stl_model.ex['diameter']
@@ -101,7 +106,7 @@ class PathCanvas(glcanvas.GLCanvas):
 class ModelCanvas(glcanvas.GLCanvas):
 
     def __init__(self, parent, stl_model):
-        glcanvas.GLCanvas.__init__(self, parent, -1)
+        glcanvas.GLCanvas.__init__(self, parent, -1, size=(400,400))
         self.init = False
         self.stl_model = stl_model
         self.lastx = self.x = 30
@@ -326,10 +331,11 @@ class LaserSliceFrame(wx.Frame):
     def __init__(self):
         wx.Frame.__init__(self, None, -1, "Massive Dubstep", size=(800, 600))
         self.createMenuBar()
-        self.statusbar = self.CreateStatusBar()
+        self.statusBar = self.CreateStatusBar()
         self.createPanel()
-        self.Bind(wx.EVT_CLOSE, self.OnQuit)
-
+        #self.Bind(wx.EVT_CLOSE, self.OnQuit)
+        self.model = False
+        self.slice = False
 
     def createPanel(self):
         self.leftPanel = ControlPanel(self)
@@ -350,8 +356,7 @@ class LaserSliceFrame(wx.Frame):
 
         self.sp.Initialize(self.modelPanel)
         self.sp.SplitVertically(self.modelPanel, self.pathPanel, 300)
-        self.sp.SetMinimumPaneSize(20)
-
+        self.sp.SetMinimumPaneSize(100)
 
     def menuData(self):
         return (("&File", ("&Open\tCtrl+o", "Open CAD file", self.OnOpen, wx.ID_OPEN),
@@ -360,7 +365,7 @@ class LaserSliceFrame(wx.Frame):
                           ("", "", "", ""),
                          ("&Quit\tCtrl+q", "Quit", self.OnQuit, wx.ID_EXIT)),
                 ("&Help", ("&About", "About this program", self.OnAbout, wx.ID_ABOUT))
-                 )
+                )
 
     def createMenu(self, menuData):
         menu = wx.Menu()
@@ -385,25 +390,30 @@ class LaserSliceFrame(wx.Frame):
         dlg = wx.FileDialog(None, "Open CAD stl file", os.getcwd(), "", wildcard, wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
             path = dlg.GetPath()
-            self.statusbar.SetStatusText(path)
-            del(self.modelCanvas)
-            del(self.stl_model)
+            self.statusBar.SetStatusText(path)
+            try:
+                del(self.modelCanvas)
+                del(self.stl_model)
+            except:
+                pass
             print 'open', path
             try:
-                self.stl_model = stl_utils.StlModel(path)
+                if not self.model:
+                    self.stl_model = stl_utils.StlModel(path)
             except stl_utils.FormatSTLError:
                 wx.MessageBox("Cannot open " + path, 'Error')
             else:
-                sizer = wx.BoxSizer(wx.VERTICAL)
+                sizer = wx.BoxSizer(wx.HORIZONTAL)
                 self.modelCanvas = ModelCanvas(self.modelPanel, self.stl_model)
                 sizer.Add(self.modelCanvas, wx.ID_ANY, wx.EXPAND)
                 self.modelPanel.SetSizer(sizer)
                 self.modelCanvas.createModel()
                 self.leftPanel.set_dimensions(self.stl_model.ex)
                 basename = os.path.basename(path)
-                root, ext = os.path.splitext(basename)
+                (root, ext) = os.path.splitext(basename)
                 self.cadname = root
         dlg.Destroy()
+        self.Refresh()
 
 
     def OnSlice(self, event):
@@ -411,10 +421,8 @@ class LaserSliceFrame(wx.Frame):
             wx.MessageBox("load a CAD model first", "warning")
             return
 
-        new_slice_height = float(self.leftPanel.txtFields['z'].GetValue())
-        self.slice.setHeight(new_slice_height)
-        self.slice_array = self.slice.fully_scan()
-        self.pathCanvas = PathCanvas(self.pathPanel, self.stl_model, self.slice_array)
+        slice = slice_utils.Slice(self.stl_model, float(self.leftPanel.txtFields['z'].GetValue()))
+        self.pathCanvas = PathCanvas(self.pathPanel, slice.get_loops())
         self.stl_model.sliced = True
         self.pathCanvas.Refresh()
         '''
@@ -422,7 +430,6 @@ class LaserSliceFrame(wx.Frame):
         result = dlg.ShowModal()
         if result == wx.ID_OK:
             dlg.getValues()
-            print 'slicing...'
             self.stl_model.queue = Queue.Queue()
             thread.start_new_thread(self.cadmodel.slice, (self.sliceParameter,))
             noLayers = self.cadmodel.queue.get()
@@ -457,7 +464,8 @@ class LaserSliceFrame(wx.Frame):
 
 
     def OnQuit(self, event):
-        exit(0)
+        pass
+#        exit(0)
         #self.Close(True)
 
     def OnSave(self, event):

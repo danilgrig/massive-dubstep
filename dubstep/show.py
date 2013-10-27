@@ -62,9 +62,9 @@ class GLFrame(wx.Frame):
         self.canvas.Bind(wx.EVT_PAINT, self.processPaintEvent)
 
         #model = stl_utils.StlModel('pudge.stl')
-        self.model = stl_utils.StlModel('stl_examples\\pudge.stl')
+        self.model = stl_utils.StlModel('stl_examples\\pencildome.stl')
         self.model.changeDirection("+Z")
-        self.model.zoom(0.1)
+        self.model.zoom(1)
    #
     # Canvas Proxy Methods
 
@@ -126,6 +126,14 @@ class GLFrame(wx.Frame):
         glLoadIdentity()
 
     def OnDraw(self, *args, **kwargs):
+        glClear(GL_COLOR_BUFFER_BIT)
+        glBegin(GL_LINES)
+        glVertex(0, 0)
+        glVertex(1, 1)
+        glEnd()
+        self.SwapBuffers()
+
+        return
         try:
             glClear(GL_COLOR_BUFFER_BIT)
             #fully scan
@@ -137,9 +145,9 @@ class GLFrame(wx.Frame):
             glEnd()
             '''
             #loops scan
-            for i in range(15):
-                 glClear(GL_COLOR_BUFFER_BIT)
-                for loop in Slice(self.model, 0).get_loops()[i:(i+1)]:
+            loops = Slice(self.model, 10).get_loops()
+            for i in range(len(loops)):
+                for loop in loops:
                     glBegin(GL_POLYGON)
                     if counter_clock_wise(loop):
                         glColor3d(1, 1, 1)
@@ -148,10 +156,10 @@ class GLFrame(wx.Frame):
                     for p in loop:
                         glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
                     glEnd()
-                self.SwapBuffers()
                 import time
-                time.sleep(1)
-
+                time.sleep(0)
+                self.SwapBuffers()
+            #self.SwapBuffers()
         except SizeSliceError:
             print "Cant slice model"
             exit(0)

@@ -28,50 +28,36 @@ class Slice:
         self.sorted_y = []
         self.ex = {'minx': MAXSIZE, 'maxx': -MAXSIZE,
                    'miny': MAXSIZE, 'maxy': -MAXSIZE}
-        if self.stl_model.loaded:
-            if model.max_size() > MAXSIZE:
-                logging.error("Cant slice %.2f model. The max size is %.2f" % (model.max_size(), MAXSIZE))
-                raise SizeSliceError("Cant slice so big model")
-            if len(model.facets) > MAXFACETS:
-                logging.error("Cant slice %d facets. The max supposed numbers of facets is %.2f" %
-                              (len(model.facets), MAXFACETS))
-                raise SizeSliceError("Cant slice so big model")
-            for facet in model.facets:
-                if facet.isIntersect(z):
-                    line = facet.intersect(z)
-                    if line.length > EPS:
-                        self.lines.append(line)
 
-            for line in self.lines:
-                for p in line:
-                    self.ex['minx'] = min(self.ex['minx'], p.x)
-                    self.ex['maxx'] = max(self.ex['maxx'], p.x)
-                    self.ex['miny'] = min(self.ex['miny'], p.y)
-                    self.ex['maxy'] = max(self.ex['maxy'], p.y)
-
-            i = 0
-            for line in self.lines:
-                self.sorted_y.append((line.p1.y, i))
-                self.sorted_y.append((line.p2.y, -1))
-                i += 1
-            self.sorted_y.sort()
-
-            #making interval tree for fast search intersected lines
-            self.tree_x = IntervalTree(0)
-        else:
-            assert 0
-
-    def setHeight(self, height):
-        # Set new height and recalculate list of facets
-        self.z = height
-        self.lines = []
-        if self.stl_model and self.stl_model.max_size() > MAXSIZE:
+        if model.max_size() > MAXSIZE:
             logging.error("Cant slice %.2f model. The max size is %.2f" % (model.max_size(), MAXSIZE))
             raise SizeSliceError("Cant slice so big model")
-        for facet in self.stl_model.facets:
-            if facet.isIntersect(self.z):
-                self.lines.append(facet.intersect(self.z))
+        if len(model.facets) > MAXFACETS:
+            logging.error("Cant slice %d facets. The max supposed numbers of facets is %.2f" %
+                          (len(model.facets), MAXFACETS))
+            raise SizeSliceError("Cant slice so big model")
+        for facet in model.facets:
+            if facet.isIntersect(z):
+                line = facet.intersect(z)
+                if line.length > EPS:
+                    self.lines.append(line)
 
+        for line in self.lines:
+            for p in line:
+                self.ex['minx'] = min(self.ex['minx'], p.x)
+                self.ex['maxx'] = max(self.ex['maxx'], p.x)
+                self.ex['miny'] = min(self.ex['miny'], p.y)
+                self.ex['maxy'] = max(self.ex['maxy'], p.y)
+
+        i = 0
+        for line in self.lines:
+            self.sorted_y.append((line.p1.y, i))
+            self.sorted_y.append((line.p2.y, -1))
+            i += 1
+        self.sorted_y.sort()
+
+        #making interval tree for fast search intersected lines
+        self.tree_x = IntervalTree(0)
 
     def __len__(self):
         return len(self.lines)
@@ -251,7 +237,6 @@ class Slice:
                 checked[nearest_idx] = True
             if len(loop) > 2:
                 ans.append(loop)
-        print len(ans)
         return ans
 
 

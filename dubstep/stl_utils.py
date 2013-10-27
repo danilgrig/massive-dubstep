@@ -21,33 +21,13 @@ class FormatSTLError(Exception):
 
 
 class StlModel:
-    def __init__(self, filename=None):
-        if filename is None:
-            self.filename = filename
-            self.facets = []
-            self.direction = '+Z'
-            self.loaded = False
-            self.sliced = False
-        else:
-            self.filename = filename
-            self.facets = []
-            self.parse()
-            self.direction = '+Z'
-            self.ex = self.get_extremal()
-            self.logScales()
-            self.loaded = True
-            self.sliced = False
-
-
-    def setFilenameAndParse(self, filename):
+    def __init__(self, filename):
         self.filename = filename
         self.facets = []
         self.parse()
+        self.direction = '+Z'
         self.ex = self.get_extremal()
         self.logScales()
-        self.loaded = True
-        self.sliced = False
-
 
     def readFacet(self, f):
         line = f.readline().strip()
@@ -110,7 +90,7 @@ class StlModel:
                 f.normal = Vector3(Point3(normal))
                 self.facets.append(f)
                 attribute_byte_count = file.read(2)
-        except struct.error:
+        except:
             self.facets = []
             raise FormatSTLError
 
