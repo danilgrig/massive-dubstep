@@ -5,10 +5,11 @@ from interval_tree import IntervalTree
 logging.basicConfig(format=u'%(levelname)-8s [%(asctime)s] %(message)s',
                     level=logging.DEBUG, filename=u'sliser.log')
 
-STEP      = 0.2
-EPS       = 0.01
-MAXSIZE   = 300
-MAXFACETS = 10000
+STEP       = 0.2
+CORRECTION = 0.001
+#EPS        = 0.001
+MAXSIZE    = 350
+MAXFACETS  = 10000
 
 
 class SizeSliceError(Exception):
@@ -28,7 +29,7 @@ class Slice:
         self.ex = {'minx': MAXSIZE, 'maxx': -MAXSIZE,
                    'miny': MAXSIZE, 'maxy': -MAXSIZE}
         if self.stl_model.loaded:
-            if  model.max_size() > MAXSIZE:
+            if model.max_size() > MAXSIZE:
                 logging.error("Cant slice %.2f model. The max size is %.2f" % (model.max_size(), MAXSIZE))
                 raise SizeSliceError("Cant slice so big model")
             if len(model.facets) > MAXFACETS:
@@ -48,20 +49,17 @@ class Slice:
                     self.ex['miny'] = min(self.ex['miny'], p.y)
                     self.ex['maxy'] = max(self.ex['maxy'], p.y)
 
+            i = 0
             for line in self.lines:
-                self.sorted_y.append(line.p1.y)
-                self.sorted_y.append(line.p2.y)
+                self.sorted_y.append((line.p1.y, i))
+                self.sorted_y.append((line.p2.y, -1))
+                i += 1
             self.sorted_y.sort()
 
             #making interval tree for fast search intersected lines
-            self.tree_x = IntervalTree(len(self.sorted_y))
-            for line in self.lines:
-                l = self.find_y(line.p1.y, False)
-                r = self.find_y(line.p2.y, False)
-                if l > r:
-                    (l, r) = (r, l)
-                self.tree_x.push(l, r - 1, line)
-
+            self.tree_x = IntervalTree(0)
+        else:
+            assert 0
 
     def setHeight(self, height):
         # Set new height and recalculate list of facets
@@ -86,10 +84,10 @@ class Slice:
         while r > l:
             m = (r + l) // 2
             if asrt:
-                if equal(self.sorted_y[m], y):
+                if equal(self.sorted_y[m][0], y):
                     logging.info('You want find_y(%.3f) with Assert mode, but there are such y' % y)
                     assert 0
-            if self.sorted_y[m] > y:
+            if self.sorted_y[m][0] > y:
                 r = m
             else:
                 l = m + 1
@@ -103,10 +101,18 @@ class Slice:
         if len(self.lines) <= 1:
             return []
 
+        self.tree_x = IntervalTree(len(self.sorted_y))
+        for line in self.lines:
+            l = self.find_y(line.p1.y, False)
+            r = self.find_y(line.p2.y, False)
+            if l > r:
+                (l, r) = (r, l)
+            self.tree_x.push(l, r - 1, line)
+
         miny = self.ex['miny']
         maxy = self.ex['maxy']
 
-        y = miny + EPS
+        y = miny + CORRECTION
         ans = []
         number_tries = 0
         while y < maxy:
@@ -118,8 +124,9 @@ class Slice:
                 y += STEP
                 number_tries = 0
             except AssertionError:
-                y += EPS
+                y += CORRECTION
                 number_tries += 1
+
         return ans
 
     #scans only significant rows
@@ -207,46 +214,56 @@ class Slice:
 
         return ans
 
-    def make_correct_loops(self):
-        print len(self.lines)
-        return []
-        '''
-        lines_dict = dict()
-
-        for line in lines:
-            if str(line.p1) not in lines_dict:
-                lines_dict[str(line.p1)] = []
-            lines_dict[str(line.p1)].append(line.p2)
-
+    def get_loops(self):
         ans = []
-        for line in lines:
-            if len(lines_dict[str(line.p1)]) > 0:
-                loop = [line.p1]
-                p = lines_dict[str(line.p1)].pop(0)
-                while len(lines_dict[str(p)]) > 0:
-                    loop.append(p)
-                    p = lines_dict[str(p)].pop(0)
 
-                if str(loop[0]) != str(p):
-                    logging.error("cant find correct loop!")
-                    assert 0
+        checked = []
+        for j in range(len(self.lines)):
+            checked.append(False)
 
+        for j in range(len(self.lines)):
+            if checked[j]:
+                continue
+            checked[j] = True
+            line = self.lines[j]
+
+            loop = [line.p1]
+            p = line.p2
+            while p.dist(line.p1) > EPS:
+                loop.append(p)
+                nearest = False
+                dist = 100
+                nearest_idx = -1
+                i = self.find_y(p.y - CORRECTION)
+                while (i < len(self.sorted_y)) and ((self.sorted_y[i][0] - CORRECTION) < p.y):
+                    if self.sorted_y[i][1] != -1 and not checked[self.sorted_y[i][1]]:
+                        if p.dist(self.lines[self.sorted_y[i][1]].p1) < dist:
+                            dist = p.dist(self.lines[self.sorted_y[i][1]].p1)
+                            nearest = self.lines[self.sorted_y[i][1]].p2
+                            nearest_idx = self.sorted_y[i][1]
+
+                    i += 1
+                if dist > CORRECTION:
+                    logging.error("Can't find nearest point. Loop is missed.")
+                    loop = []
+                    break
+                p = nearest
+                checked[nearest_idx] = True
+            if len(loop) > 2:
                 ans.append(loop)
-
         return ans
-        '''
 
 
 if __name__ == '__main__':
 #    model = stl_utils.StlModel('C:\\calibration\\pudge.stl')
 #    model.zoom(0.1)
-    model = stl_utils.StlModel('stl_examples\\pencildome.stl')
-    model.zoom(1)
+    model = stl_utils.StlModel('stl_examples\\pudge.stl')
+    model.zoom(0.08)
     slice = Slice(model, 10)
     start = time()
-    for line in slice.fully_scan():
-        print line
+    for loop in slice.get_loops():
+        print counter_clock_wise(loop)
+#        print p
 #        print ' '.join(map(str, list(line)))
     end = time()
     print "time = %f" % (end - start)
-

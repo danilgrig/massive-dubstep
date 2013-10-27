@@ -62,9 +62,9 @@ class GLFrame(wx.Frame):
         self.canvas.Bind(wx.EVT_PAINT, self.processPaintEvent)
 
         #model = stl_utils.StlModel('pudge.stl')
-        self.model = stl_utils.StlModel('stl_examples\\pencildome.stl')
+        self.model = stl_utils.StlModel('stl_examples\\pudge.stl')
         self.model.changeDirection("+Z")
-        self.model.zoom(1)
+        self.model.zoom(0.1)
    #
     # Canvas Proxy Methods
 
@@ -128,11 +128,24 @@ class GLFrame(wx.Frame):
     def OnDraw(self, *args, **kwargs):
         try:
             glClear(GL_COLOR_BUFFER_BIT)
+            #fully scan
+            '''
             glBegin(GL_LINES)
             for line in Slice(self.model, 10).fully_scan():
                 glVertex(convertXToOpenGL(line.p1.x), convertYToOpenGL(line.p1.y))
                 glVertex(convertXToOpenGL(line.p2.x), convertYToOpenGL(line.p2.y))
             glEnd()
+            '''
+            #loops scan
+            for loop in Slice(self.model, 10).get_loops():
+                glBegin(GL_POLYGON)
+                if counter_clock_wise(loop):
+                    glColor3d(1, 1, 1)
+                else:
+                    glColor3d(0, 0, 0)
+                for p in loop:
+                    glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+                glEnd()
 
             self.SwapBuffers()
         except SizeSliceError:

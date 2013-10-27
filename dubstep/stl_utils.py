@@ -33,8 +33,8 @@ class StlModel:
             self.facets = []
             self.parse()
             self.direction = '+Z'
-            self.logScales()
             self.ex = self.get_extremal()
+            self.logScales()
             self.loaded = True
             self.sliced = False
 
@@ -47,29 +47,6 @@ class StlModel:
         self.logScales()
         self.loaded = True
         self.sliced = False
-
-
-    def save(self, filename):
-        # Save slices of a stl-model in xml format
-        # TODO Should be changed
-        f = open(filename, 'w')
-        print >> f, '<slice>'
-        print >> f, '    <dimension>'
-        print >> f, '        <x>', self.ex['xsize'], '</x>'
-        print >> f, '        <y>', self.ex['ysize'], '</y>'
-        print >> f, '        <z>', self.ex['zsize'], '</z>'
-        print >> f, '    </dimension>'
-        print >> f, '    <para>'
-        print >> f, '         <layerheight>', self.height, '</layerheight>'
-        print >> f, '         <layerpitch>', self.pitch, '</layerpitch>'
-        print >> f, '         <speed>', self.speed, '</speed>'
-        print >> f, '    </para>'
-        print >> f, '<layers num="', len(self.layers), '">'
-
-        for layer in self.layers:
-            layer.write(f)
-        print >> f, '</layers>'
-        print >> f, '</slice>'
 
 
     def readFacet(self, f):
@@ -114,25 +91,24 @@ class StlModel:
             raise FormatSTLError('Expected "endsolid %s", got "%s"' % (name, line))
 
     def parseBin(self):
-        f = open(self.filename, 'rb')
+        file = open(self.filename, 'rb')
         import struct
-        header = f.read(80)
+        header = file.read(80)
         logging.info('Parsing STL binary model')
         logging.info('HEADER: %s' % header)
-        (count,) = struct.unpack('<I', f.read(4))
+        (count,) = struct.unpack('<I', file.read(4))
         logging.info('COUNT: %d' % count)
 
         for i in range(count):
-            normal = struct.unpack('<fff', f.read(12))
+            normal = struct.unpack('<fff', file.read(12))
             points = []
             for i in range(3):
-                points.append(struct.unpack('<fff', f.read(12)))
+                points.append(struct.unpack('<fff', file.read(12)))
 
             f = Facet(Point3(points[0]), Point3(points[1]), Point3(points[2]) )
             f.normal = Vector3(Point3(normal))
-            f.normal.z = 0.0
             self.facets.append(f)
-            attribute_byte_count = f.read(2)
+            attribute_byte_count = file.read(2)
 
     def parse(self):
         f = open(self.filename, 'r')
@@ -141,14 +117,6 @@ class StlModel:
             self.parseText()
         else:
             self.parseBin()
-        return
-        #It is not completely true. I have seen *.stl files without "solid" in the begin
-        line = self.f.readline().strip()
-        self.f.seek(0)
-        if line.startswith('solid'):
-            return self.parseText()
-        else:
-            return self.parseBin()
 
     def get_extremal(self):
         rand_point = self.facets[0].points[0]
@@ -169,9 +137,9 @@ class StlModel:
         extremals['ysize'] = extremals['maxy'] - extremals['miny']
         extremals['zsize'] = extremals['maxz'] - extremals['minz']
         extremals['diameter'] = math.sqrt(extremals['xsize']**2 + extremals['ysize']**2 + extremals['zsize']**2)
-        extremals['xcenter'] = (extremals['maxx'] + extremals['minx'])/2
-        extremals['ycenter'] = (extremals['maxy'] + extremals['miny'])/2
-        extremals['zcenter'] = (extremals['maxz'] + extremals['minz'])/2
+        extremals['xcenter'] = (extremals['maxx'] + extremals['minx']) / 2
+        extremals['ycenter'] = (extremals['maxy'] + extremals['miny']) / 2
+        extremals['zcenter'] = (extremals['maxz'] + extremals['minz']) / 2
         return extremals
 
     def changeDirection(self, direction):
@@ -231,7 +199,7 @@ class StlModel:
             for facet in self.facets:
                 normal = facet.normal
                 glNormal3f(normal.x, normal.y, normal.z)
-                for p in facet.points:
+                for p in facet:
                     glVertex3f(p.x, p.y, p.z)
             glEnd()
         glEndList()

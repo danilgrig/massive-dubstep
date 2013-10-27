@@ -23,6 +23,35 @@ def cross2(v1, v2):
     return v1.x * v2.y - v1.y * v2.x
 
 
+def dot(v1, v2):
+    return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+
+
+def counter_clock_wise(loop):
+    assert len(loop) > 2
+    p1 = loop[0]
+    p2 = loop[1]
+    angle = 0
+    for p in loop[2:]:
+        l1 = p1.dist(p2)
+        l2 = p2.dist(p)
+        cos = dot(Vector3(p2, p1), Vector3(p, p2)) / (l1 * l2)
+        sin = cross2(Vector3(p2, p1), Vector3(p, p2)) / (l1 * l2)
+
+        assert not equal(sin, 0) or cos > 0
+        if equal(sin, 0.0):
+            angle += 0.0
+        elif sin > 0:
+            angle += math.degrees(math.acos(cos))
+        else:
+            angle -= math.degrees(math.acos(cos))
+
+        p1 = p2
+        p2 = p
+
+    return angle > 0
+
+
 #you must be careful to provide x1 != x2
 def intersect(x1, y1, x2, y2, x):
     y = (y2 - y1) / (x2 - x1) * (x - x1) + y1
@@ -47,6 +76,14 @@ class Point3:
     def __eq__(self, other):
         return equal(self.x, other.x) and equal(self.y, other.y) and equal(self.z, other.z)
 
+    def dist(self, other):
+        if type(other) == bool:
+            return 100
+        dx = self.x - other.x
+        dy = self.y - other.y
+        dz = self.z - other.z
+        return math.sqrt(dx * dx + dy * dy + dz * dz)
+
 
 class Point2:
     def __init__(self, x=0.0, y=0.0, z=0.0):
@@ -63,6 +100,13 @@ class Point2:
 
     def __eq__(self, other):
         return equal(self.x, other.x) and equal(self.y, other.y)
+
+    def dist(self, other):
+        if type(other) == bool:
+            return 100
+        dx = self.x - other.x
+        dy = self.y - other.y
+        return math.sqrt(dx * dx + dy * dy)
 
 
 class Line3:
@@ -168,7 +212,10 @@ class Vector3:
     def __init__(self, p1=Point3(), p2=Point3()):
         self.x = p1.x - p2.x
         self.y = p1.y - p2.y
-        self.z = p1.z - p2.z
+        try:
+            self.z = p1.z - p2.z
+        except:
+            self.z = 0.0
 
     def __str__(self):
         s = 'Vector3(%f, %f, %f) ' % (self.x, self.y, self.z)
@@ -281,8 +328,7 @@ class Facet:
 
         v = cross2(self.normal, Vector3(Point3(line.p2.x, line.p2.y), Point3(line.p1.x, line.p1.y)))
         if equal(v, 0.0):
-            pass
-#            logging.error("v == 0")
+            logging.info("intersect: v == 0")
         if v < 0.0:
             line.swap()
         return line
