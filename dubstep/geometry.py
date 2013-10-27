@@ -181,7 +181,7 @@ class Facet:
         v1 = Vector3(p2, p1)
         v2 = Vector3(p3, p1)
         n = cross3(v1, v2)
-        self.normal = Vector3(Point3(n.x, n.y))
+        self.normal = Vector3(Point3(n.x, n.y, n.z))
 
     def __str__(self):
         s = 'normal: ' + str(self.normal)

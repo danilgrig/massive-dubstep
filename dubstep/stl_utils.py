@@ -1,3 +1,11 @@
+try:
+    from OpenGL.GL import *
+    from OpenGL.GLUT import *
+except ImportError, e:
+    print e
+    sys.exit()
+
+
 from geometry import *
 import logging
 logging.basicConfig(format=u'%(levelname)-8s [%(asctime)s] %(message)s',
@@ -13,13 +21,56 @@ class FormatSTLError(Exception):
 
 
 class StlModel:
-    def __init__(self, filename):
+    def __init__(self, filename=None):
+        if filename is None:
+            self.filename = filename
+            self.facets = []
+            self.direction = '+Z'
+            self.loaded = False
+            self.sliced = False
+        else:
+            self.filename = filename
+            self.facets = []
+            self.parse()
+            self.direction = '+Z'
+            self.logScales()
+            self.ex = self.get_extremal()
+            self.loaded = True
+            self.sliced = False
+
+
+    def setFilenameAndParse(self, filename):
         self.filename = filename
         self.facets = []
         self.parse()
-        self.direction = '+Z'
         self.ex = self.get_extremal()
         self.logScales()
+        self.loaded = True
+        self.sliced = False
+
+
+    def save(self, filename):
+        # Save slices of a stl-model in xml format
+        # TODO Should be changed
+        f = open(filename, 'w')
+        print >> f, '<slice>'
+        print >> f, '    <dimension>'
+        print >> f, '        <x>', self.ex['xsize'], '</x>'
+        print >> f, '        <y>', self.ex['ysize'], '</y>'
+        print >> f, '        <z>', self.ex['zsize'], '</z>'
+        print >> f, '    </dimension>'
+        print >> f, '    <para>'
+        print >> f, '         <layerheight>', self.height, '</layerheight>'
+        print >> f, '         <layerpitch>', self.pitch, '</layerpitch>'
+        print >> f, '         <speed>', self.speed, '</speed>'
+        print >> f, '    </para>'
+        print >> f, '<layers num="', len(self.layers), '">'
+
+        for layer in self.layers:
+            layer.write(f)
+        print >> f, '</layers>'
+        print >> f, '</slice>'
+
 
     def readFacet(self, f):
         line = f.readline().strip()
@@ -114,6 +165,13 @@ class StlModel:
 
                 extremals['minz'] = min(extremals['minz'], p.z)
                 extremals['maxz'] = max(extremals['maxz'], p.z)
+        extremals['xsize'] = extremals['maxx'] - extremals['minx']
+        extremals['ysize'] = extremals['maxy'] - extremals['miny']
+        extremals['zsize'] = extremals['maxz'] - extremals['minz']
+        extremals['diameter'] = math.sqrt(extremals['xsize']**2 + extremals['ysize']**2 + extremals['zsize']**2)
+        extremals['xcenter'] = (extremals['maxx'] + extremals['minx'])/2
+        extremals['ycenter'] = (extremals['maxy'] + extremals['miny'])/2
+        extremals['zcenter'] = (extremals['maxz'] + extremals['minz'])/2
         return extremals
 
     def changeDirection(self, direction):
@@ -163,3 +221,17 @@ class StlModel:
         for v in self.ex.values():
             max_v = max(max_v, abs(v))
         return max_v
+
+    def create_gl_model_list(self):
+        self.modelListId = 1000
+        glNewList(self.modelListId, GL_COMPILE)
+        if self.loaded:
+            glColor(1, 0, 0)
+            glBegin(GL_TRIANGLES)
+            for facet in self.facets:
+                normal = facet.normal
+                glNormal3f(normal.x, normal.y, normal.z)
+                for p in facet.points:
+                    glVertex3f(p.x, p.y, p.z)
+            glEnd()
+        glEndList()
