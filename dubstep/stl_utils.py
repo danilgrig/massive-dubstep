@@ -93,22 +93,26 @@ class StlModel:
     def parseBin(self):
         file = open(self.filename, 'rb')
         import struct
-        header = file.read(80)
-        logging.info('Parsing STL binary model')
-        logging.info('HEADER: %s' % header)
-        (count,) = struct.unpack('<I', file.read(4))
-        logging.info('COUNT: %d' % count)
+        try:
+            header = file.read(80)
+            logging.info('Parsing STL binary model')
+            logging.info('HEADER: %s' % header)
+            (count,) = struct.unpack('<I', file.read(4))
+            logging.info('COUNT: %d' % count)
 
-        for i in range(count):
-            normal = struct.unpack('<fff', file.read(12))
-            points = []
-            for i in range(3):
-                points.append(struct.unpack('<fff', file.read(12)))
+            for i in range(count):
+                normal = struct.unpack('<fff', file.read(12))
+                points = []
+                for i in range(3):
+                    points.append(struct.unpack('<fff', file.read(12)))
 
-            f = Facet(Point3(points[0]), Point3(points[1]), Point3(points[2]) )
-            f.normal = Vector3(Point3(normal))
-            self.facets.append(f)
-            attribute_byte_count = file.read(2)
+                f = Facet(Point3(points[0]), Point3(points[1]), Point3(points[2]) )
+                f.normal = Vector3(Point3(normal))
+                self.facets.append(f)
+                attribute_byte_count = file.read(2)
+        except struct.error:
+            self.facets = []
+            raise FormatSTLError
 
     def parse(self):
         f = open(self.filename, 'r')

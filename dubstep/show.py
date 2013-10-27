@@ -137,17 +137,21 @@ class GLFrame(wx.Frame):
             glEnd()
             '''
             #loops scan
-            for loop in Slice(self.model, 10).get_loops():
-                glBegin(GL_POLYGON)
-                if counter_clock_wise(loop):
-                    glColor3d(1, 1, 1)
-                else:
-                    glColor3d(0, 0, 0)
-                for p in loop:
-                    glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
-                glEnd()
+            for i in range(15):
+                 glClear(GL_COLOR_BUFFER_BIT)
+                for loop in Slice(self.model, 0).get_loops()[i:(i+1)]:
+                    glBegin(GL_POLYGON)
+                    if counter_clock_wise(loop):
+                        glColor3d(1, 1, 1)
+                    else:
+                        glColor3d(0, 0, 0)
+                    for p in loop:
+                        glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+                    glEnd()
+                self.SwapBuffers()
+                import time
+                time.sleep(1)
 
-            self.SwapBuffers()
         except SizeSliceError:
             print "Cant slice model"
             exit(0)

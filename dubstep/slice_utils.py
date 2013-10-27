@@ -244,13 +244,14 @@ class Slice:
 
                     i += 1
                 if dist > CORRECTION:
-                    logging.error("Can't find nearest point. Loop is missed.")
+                    logging.info("Can't find nearest point. Loop is missed.")
                     loop = []
                     break
                 p = nearest
                 checked[nearest_idx] = True
             if len(loop) > 2:
                 ans.append(loop)
+        print len(ans)
         return ans
 
 
