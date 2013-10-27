@@ -324,13 +324,12 @@ class ControlPanel(wx.Panel):
 class LaserSliceFrame(wx.Frame):
 
     def __init__(self):
-        wx.Frame.__init__(self, None, -1, "Laser slice", size=(800, 600))
-        self.stl_model = stl_utils.StlModel()
-        self.slice = slice_utils.Slice(self.stl_model, 0)
-        self.slice_array = []
+        wx.Frame.__init__(self, None, -1, "Massive Dubstep", size=(800, 600))
         self.createMenuBar()
         self.statusbar = self.CreateStatusBar()
         self.createPanel()
+        self.Bind(wx.EVT_CLOSE, self.OnQuit)
+
 
     def createPanel(self):
         self.leftPanel = ControlPanel(self)
@@ -338,16 +337,12 @@ class LaserSliceFrame(wx.Frame):
         self.modelPanel = wx.Panel(self.sp, style=wx.SUNKEN_BORDER)
         self.pathPanel = wx.Panel(self.sp, style=wx.SUNKEN_BORDER)
 
-        self.modelCanvas = ModelCanvas(self.modelPanel, self.stl_model)
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(self.modelCanvas, 1, wx.EXPAND)
-        self.modelPanel.SetSizer(sizer)
-
+        '''
         self.pathCanvas = PathCanvas(self.pathPanel, self.stl_model, self.slice_array)
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.pathCanvas, 1, wx.EXPAND)
         self.pathPanel.SetSizer(sizer)
-
+        '''
         box = wx.BoxSizer(wx.HORIZONTAL)
         box.Add(self.leftPanel, 0, wx.EXPAND)
         box.Add(self.sp, 1, wx.EXPAND)
@@ -391,19 +386,25 @@ class LaserSliceFrame(wx.Frame):
         if dlg.ShowModal() == wx.ID_OK:
             path = dlg.GetPath()
             self.statusbar.SetStatusText(path)
+            del(self.modelCanvas)
+            del(self.stl_model)
             print 'open', path
             try:
-                self.stl_model.setFilenameAndParse(path)
+                self.stl_model = stl_utils.StlModel(path)
             except stl_utils.FormatSTLError:
                 wx.MessageBox("Cannot open " + path, 'Error')
             else:
+                sizer = wx.BoxSizer(wx.VERTICAL)
+                self.modelCanvas = ModelCanvas(self.modelPanel, self.stl_model)
+                sizer.Add(self.modelCanvas, wx.ID_ANY, wx.EXPAND)
+                self.modelPanel.SetSizer(sizer)
                 self.modelCanvas.createModel()
-                self.pathCanvas.Refresh()
                 self.leftPanel.set_dimensions(self.stl_model.ex)
                 basename = os.path.basename(path)
                 root, ext = os.path.splitext(basename)
                 self.cadname = root
         dlg.Destroy()
+
 
     def OnSlice(self, event):
         if not self.stl_model.loaded:
@@ -456,7 +457,8 @@ class LaserSliceFrame(wx.Frame):
 
 
     def OnQuit(self, event):
-        self.Close()
+        exit(0)
+        #self.Close(True)
 
     def OnSave(self, event):
         if not self.stl_model.sliced:
