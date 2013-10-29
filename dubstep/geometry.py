@@ -328,7 +328,7 @@ class Facet:
 
         v = cross2(self.normal, Vector3(Point3(line.p2.x, line.p2.y), Point3(line.p1.x, line.p1.y)))
         if equal(v, 0.0):
-            logging.info("intersect: v == 0")
+            logging.info("geometry: v == 0")
         if v < 0.0:
             line.swap()
         return line
