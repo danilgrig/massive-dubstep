@@ -3,6 +3,7 @@ import os
 import stl_utils
 import slice_utils
 import geometry
+import time
 
 try:
     from wx import glcanvas
@@ -20,11 +21,11 @@ except ImportError, e:
 
 
 def convertXToOpenGL(x):
-    return x / 100
+    return x / 50
 
 
 def convertYToOpenGL(y):
-    return y / 100
+    return y / 50
 
 
 MODEL_LIST_ID = 1000
@@ -34,29 +35,32 @@ SLICE_LIST_ID = 1001
 class SliceCanvas(glcanvas.GLCanvas):
 
     def __init__(self, parent):
-        glcanvas.GLCanvas.__init__(self, parent, -1)
+        glcanvas.GLCanvas.__init__(self, parent, -1, size=(300, 300))
 
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.onEraseBackground)
         self.Bind(wx.EVT_SIZE, self.onSize)
         self.Bind(wx.EVT_PAINT, self.onPaint)
         self.slice = None
+        self.onPaint()
 
     def onEraseBackground(self, event):
         pass # Do nothing, to avoid flashing on MSW.
 
     def set_slice(self, slice):
         self.slice = slice
-        glNewList(SLICE_LIST_ID, GL_COMPILE)
-        for loop in self.slice.get_loops():
-            glBegin(GL_POLYGON)
-            if geometry.counter_clock_wise(loop):
-                glColor(1, 1, 1)
-            else:
-                glColor(0, 0, 0)
-            for p in loop:
-                glVertex2f(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
-            glEnd()
-        glEndList()
+
+#        glNewList(SLICE_LIST_ID, GL_COMPILE)
+#        for loop in slice.get_loops():
+#            glBegin(GL_POLYGON)
+#            if geometry.counter_clock_wise(loop):
+#                glColor(1, 1, 1)
+#            else:
+#                glColor(0, 0, 0)
+#            for p in loop:
+#                glVertex2f(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+#            glEnd()
+#        glEndList()
+
         self.onPaint()
 
     def onSize(self, event):
@@ -66,21 +70,62 @@ class SliceCanvas(glcanvas.GLCanvas):
             glViewport(0, 0, size.width, size.height)
         self.Refresh()
 
-    def onPaint(self, event=None):
-        print 'slice paint'
-        if self.slice is None:
-            self.SwapBuffers()
-            return
-        self.SetCurrent()
-        glClear(GL_COLOR_BUFFER_BIT)
-        glCallList(SLICE_LIST_ID)
+    def draw_loops(self, slice):
+        loops = slice.get_loops()
+        for loop in loops[0:1]:
+            glBegin(GL_POLYGON)
+            if counter_clock_wise(loop):
+                glColor3d(1, 1, 1)
+            else:
+                glColor3d(0, 0, 0)
+            for p in loop:
+                glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+            glEnd()
         self.SwapBuffers()
+        #import time
+        #time.sleep(1)
+
+    def draw_full_scan(self, slice):
+        lines = slice.fully_scan()
+        glBegin(GL_LINES)
+        glColor3d(1, 1, 1)
+        for line in lines:
+            for p in line:
+                glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+        glEnd()
+        self.SwapBuffers()
+        #import time
+        #time.sleep(1)
+
+    def onPaint(self, event=None):
+        try:
+            wx.PaintDC(self)
+        except:
+            pass
+        if not(self.slice is None):
+            self.SetCurrent()
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+            self.draw_full_scan(self.slice)
+            #glCallList(SLICE_LIST_ID)
+            #self.SwapBuffers()
+        else:
+            pass
+#            self.SetCurrent()
+#            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+#            glBegin(GL_POLYGON)
+#            glColor3d(1, 0, 1)
+#            glVertex(-0.9, -0.9)
+#            glVertex(0.9, -0.9)
+#            glVertex(0.9, 0.9)
+#            glVertex(-0.9, 0.9)
+#            glEnd()
+#            self.SwapBuffers()
 
 
 class ModelCanvas(glcanvas.GLCanvas):
 
     def __init__(self, parent):
-        glcanvas.GLCanvas.__init__(self, parent, -1)
+        glcanvas.GLCanvas.__init__(self, parent, -1, size=parent.Size)
         self.model = None
         self.lastx = self.x = 30
         self.lasty = self.y = 30
@@ -112,24 +157,31 @@ class ModelCanvas(glcanvas.GLCanvas):
         pass # Do nothing, to avoid flashing on MSW.
 
     def onPaint(self, event=None):
-        if self.model is None:
-            self.SwapBuffers()
-            return
-        self.SetCurrent()
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        self.setup_glcontext()
-        self.setup_projection()
-        glMatrixMode(GL_MODELVIEW)
-        glLoadIdentity()
-        glTranslatef(0, 0, -self.model.ex['diameter'])
-        # Rotate model
-        glRotatef(self.xangle, 1, 0, 0)
-        glRotatef(self.yangle, 0, 1, 0)
-        # Move model to origin
-        glTranslatef(-self.model.ex['xcenter'], -self.model.ex['ycenter'], -self.model.ex['zcenter'])
+        try:
+            wx.PaintDC(self)
+        except:
+            pass
+        if not(self.model is None):
+            self.SetCurrent()
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+            self.setup_glcontext()
+            self.setup_projection()
+            glMatrixMode(GL_MODELVIEW)
+            glLoadIdentity()
+            glTranslatef(0, 0, -self.model.ex['diameter'])
+            # Rotate model
+            glRotatef(self.xangle, 1, 0, 0)
+            glRotatef(self.yangle, 0, 1, 0)
+            # Move model to origin
+            glTranslatef(-self.model.ex['xcenter'], -self.model.ex['ycenter'], -self.model.ex['zcenter'])
 
-        glCallList(MODEL_LIST_ID)
-        self.SwapBuffers()
+            glCallList(MODEL_LIST_ID)
+            self.SwapBuffers()
+        else:
+            self.SetCurrent()
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+            self.SwapBuffers()
+
 
 #    def showPath(self):
 #        if self.stl_model.sliced:
@@ -297,6 +349,7 @@ class ControlPanel(wx.Panel):
         button_one.Bind(wx.EVT_BUTTON, self.parent.onSlice)
         sizer.Add(button_one, 0, wx.EXPAND|wx.ALL)
         button_all = wx.Button(self, -1, "Start slicing")
+        button_all.Bind(wx.EVT_BUTTON, self.parent.onStartSlicing)
         sizer.Add(button_all, 0, wx.EXPAND|wx.ALL)
         return sizer
 
@@ -309,27 +362,32 @@ class MainFrame(wx.Frame):
         self.create_menu_bar()
         self.status_bar = self.CreateStatusBar()
         self.left_panel = ControlPanel(self)
-        self.sp = wx.SplitterWindow(self)
+        self.sp = wx.SplitterWindow(self, -1)
         box = wx.BoxSizer(wx.HORIZONTAL)
         box.Add(self.left_panel, 0, wx.EXPAND)
         box.Add(self.sp, 1, wx.EXPAND)
         self.SetSizer(box)
 
-        self.model_panel = wx.Panel(self.sp, style=wx.SUNKEN_BORDER)
-        self.slice_panel = wx.Panel(self.sp, style=wx.SUNKEN_BORDER)
+        self.model_panel = wx.Panel(self.sp, -1, style=wx.SUNKEN_BORDER)
+        self.slice_panel = wx.Panel(self.sp, -1, style=wx.SUNKEN_BORDER)
         self.sp.Initialize(self.model_panel)
         self.sp.SplitVertically(self.model_panel, self.slice_panel, 300)
         self.sp.SetMinimumPaneSize(100)
 
         self.model_canvas = ModelCanvas(self.model_panel)
         model_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        model_sizer.Add(self.model_canvas, wx.ID_ANY, wx.EXPAND)
+        model_sizer.Add(self.model_canvas, 0, wx.EXPAND)
         self.model_panel.SetSizer(model_sizer)
 
         self.slice_canvas = SliceCanvas(self.slice_panel)
         slice_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        slice_sizer.Add(self.slice_canvas, wx.ID_ANY, wx.EXPAND)
+        slice_sizer.Add(self.slice_canvas, 0, wx.EXPAND)
         self.slice_panel.SetSizer(slice_sizer)
+
+        self.timer = wx.Timer(self, -1)
+        self.Bind(wx.EVT_TIMER, self.onTickSlicing, self.timer)
+
+        self.z = 0
 
     def menu_data(self):
         return (("&File", ("&Open\tCtrl+o", "Open CAD file", self.onOpen, wx.ID_OPEN),
@@ -361,6 +419,7 @@ class MainFrame(wx.Frame):
         self.model = model
         self.left_panel.set_dimensions(model.ex)
         self.model_canvas.set_model(model)
+        print "There are %d facets in the model" % len(self.model.facets)
 
     def onOpen(self, event):
         wildcard = "CAD std files (*.stl)|*.stl|All files (*.*)|*.*"
@@ -383,7 +442,26 @@ class MainFrame(wx.Frame):
         if self.model is None:
             wx.MessageBox("load a CAD model first", "warning")
         else:
-            self.slice_canvas.set_slice(slice_utils.Slice(self.model, 10))
+            s = self.left_panel.txt_fields["z"].Value
+            self.slice_canvas.set_slice(slice_utils.Slice(self.model, float(s)) )
+
+    def onStartSlicing(self, event):
+        if self.timer.IsRunning():
+            self.timer.Stop()
+            print "slicing stopped!"
+        else:
+            print "starting slicing..."
+            self.z = float(self.left_panel.txt_fields["z"].Value)
+            self.timer.Start(float(self.left_panel.txt_fields["dt"].Value))
+
+    def onTickSlicing(self, event):
+        self.z += float(self.left_panel.txt_fields["dz"].Value)
+        if self.z > self.model.ex['maxz']:
+            self.timer.Stop()
+            print "Finish!"
+            return
+        print "Slicing %.2f" % self.z
+        self.slice_canvas.set_slice(slice_utils.Slice(self.model, self.z) )
 
     def onQuit(self, event):
         exit(0)

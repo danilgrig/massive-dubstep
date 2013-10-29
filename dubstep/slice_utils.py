@@ -5,11 +5,11 @@ from interval_tree import IntervalTree
 logging.basicConfig(format=u'%(levelname)-8s [%(asctime)s] %(message)s',
                     level=logging.DEBUG, filename=u'sliser.log')
 
-STEP       = 0.2
-CORRECTION = 0.001
+STEP       = 0.1
+CORRECTION = 0.0001
 #EPS        = 0.001
 MAXSIZE    = 350
-MAXFACETS  = 10000
+MAXFACETS  = 30000
 
 
 class SizeSliceError(Exception):

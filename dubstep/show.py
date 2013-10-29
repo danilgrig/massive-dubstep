@@ -1,18 +1,3 @@
-'''import wx
-from OpenGL.GL import *
-from OpenGL.GLUT import *
-
-class Window(wx.Frame):
-
-    def __init__(self, parent, title):
-        wx.Frame.__init__(self, parent, title=title, pos=(wx.Display(1).GetGeometry()[0], 0))
-        self.SetBackgroundColour('black')
-        self.ShowFullScreen(True, style=wx.FULLSCREEN_ALL)
-
-app = wx.App()
-wnd = Window(None, "123")
-
-app.MainLoop()'''
 from slice_utils import *
 from stl_utils import *
 
@@ -28,10 +13,10 @@ except ImportError:
     raise ImportError, "Required dependency OpenGL not present"
 
 def convertXToOpenGL(x):
-    return x / 600
+    return x / 100
 
 def convertYToOpenGL(x):
-    return x / 600
+    return x / 100
 
 class GLFrame(wx.Frame):
     """A simple class for using OpenGL with wxPython."""
@@ -125,41 +110,42 @@ class GLFrame(wx.Frame):
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
 
-    def OnDraw(self, *args, **kwargs):
-        glClear(GL_COLOR_BUFFER_BIT)
+    def draw_loops(self, slice):
+        loops = slice.get_loops()
+        for loop in loops[0:1]:
+            glBegin(GL_POLYGON)
+            if counter_clock_wise(loop):
+                glColor3d(1, 1, 1)
+            else:
+                glColor3d(0, 0, 0)
+            for p in loop:
+                glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+            glEnd()
+        self.SwapBuffers()
+        #import time
+        #time.sleep(1)
+
+    def draw_full_scan(self, slice):
+        lines = slice.fully_scan()
         glBegin(GL_LINES)
-        glVertex(0, 0)
-        glVertex(1, 1)
+        for line in lines:
+            for p in line:
+                glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
         glEnd()
         self.SwapBuffers()
+        #import time
+        #time.sleep(1)
 
-        return
+    def OnDraw(self, *args, **kwargs):
         try:
+            slice = Slice(self.model, 30)
             glClear(GL_COLOR_BUFFER_BIT)
-            #fully scan
-            '''
-            glBegin(GL_LINES)
-            for line in Slice(self.model, 10).fully_scan():
-                glVertex(convertXToOpenGL(line.p1.x), convertYToOpenGL(line.p1.y))
-                glVertex(convertXToOpenGL(line.p2.x), convertYToOpenGL(line.p2.y))
-            glEnd()
-            '''
-            #loops scan
-            loops = Slice(self.model, 10).get_loops()
-            for i in range(len(loops)):
-                for loop in loops:
-                    glBegin(GL_POLYGON)
-                    if counter_clock_wise(loop):
-                        glColor3d(1, 1, 1)
-                    else:
-                        glColor3d(0, 0, 0)
-                    for p in loop:
-                        glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
-                    glEnd()
-                import time
-                time.sleep(0)
-                self.SwapBuffers()
-            #self.SwapBuffers()
+            import time
+            self.draw_full_scan(slice)
+            time.sleep(5)
+            glClear(GL_COLOR_BUFFER_BIT)
+            self.SwapBuffers()
+            self.draw_loops(slice)
         except SizeSliceError:
             print "Cant slice model"
             exit(0)
