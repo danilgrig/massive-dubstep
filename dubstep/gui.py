@@ -21,11 +21,11 @@ except ImportError, e:
 
 
 def convertXToOpenGL(x):
-    return x / 50
+    return x / 300
 
 
 def convertYToOpenGL(y):
-    return y / 50
+    return y / 300
 
 
 MODEL_LIST_ID = 1000
@@ -35,81 +35,74 @@ SLICE_LIST_ID = 1001
 class SliceCanvas(glcanvas.GLCanvas):
 
     def __init__(self, parent):
-        glcanvas.GLCanvas.__init__(self, parent, -1, size=(300, 300))
+        glcanvas.GLCanvas.__init__(self, parent, -1, size=parent.Size)
+        self.parent = parent
+        self.slice = None
 
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.onEraseBackground)
         self.Bind(wx.EVT_SIZE, self.onSize)
         self.Bind(wx.EVT_PAINT, self.onPaint)
-        self.slice = None
-        self.onPaint()
+        self.Refresh()
 
     def onEraseBackground(self, event):
         pass # Do nothing, to avoid flashing on MSW.
 
     def set_slice(self, slice):
+        if self.slice:
+            glDeleteLists(SLICE_LIST_ID, SLICE_LIST_ID + 1)
         self.slice = slice
 
-#        glNewList(SLICE_LIST_ID, GL_COMPILE)
-#        for loop in slice.get_loops():
-#            glBegin(GL_POLYGON)
-#            if geometry.counter_clock_wise(loop):
-#                glColor(1, 1, 1)
-#            else:
-#                glColor(0, 0, 0)
-#            for p in loop:
-#                glVertex2f(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
-#            glEnd()
-#        glEndList()
+        glNewList(SLICE_LIST_ID, GL_COMPILE)
+        self.draw_full_scan()
+        glEndList()
 
+        self.Refresh()
         self.onPaint()
 
-    def onSize(self, event):
-        if self.GetContext():
-            self.SetCurrent()
-            size = self.GetClientSize()
-            glViewport(0, 0, size.width, size.height)
-        self.Refresh()
-
-    def draw_loops(self, slice):
-        loops = slice.get_loops()
-        for loop in loops[0:1]:
+    def draw_loops(self):
+        loops = self.slice.get_loops()
+        for loop in loops:
             glBegin(GL_POLYGON)
-            if counter_clock_wise(loop):
+            if geometry.counter_clock_wise(loop):
                 glColor3d(1, 1, 1)
             else:
                 glColor3d(0, 0, 0)
             for p in loop:
                 glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
             glEnd()
-        self.SwapBuffers()
-        #import time
-        #time.sleep(1)
 
-    def draw_full_scan(self, slice):
-        lines = slice.fully_scan()
+    def draw_full_scan(self):
+        lines = self.slice.fully_scan()
         glBegin(GL_LINES)
         glColor3d(1, 1, 1)
         for line in lines:
             for p in line:
                 glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
         glEnd()
-        self.SwapBuffers()
-        #import time
-        #time.sleep(1)
+
+    def onSize(self, event):
+        if self.GetContext():
+            self.Size = self.parent.Size
+            self.SetCurrent()
+            size = self.GetClientSize()
+            glViewport(0, 0, size.width, size.height)
+        self.Refresh()
+        event.Skip()
 
     def onPaint(self, event=None):
         try:
             wx.PaintDC(self)
         except:
+            print 'error in wx.PaintDC(self)'
             pass
-        if not(self.slice is None):
+        if self.slice:
             self.SetCurrent()
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-            self.draw_full_scan(self.slice)
-            #glCallList(SLICE_LIST_ID)
-            #self.SwapBuffers()
+            self.draw_full_scan()
+            glCallList(SLICE_LIST_ID)
+            self.SwapBuffers()
         else:
-            pass
+#            pass
 #            self.SetCurrent()
 #            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 #            glBegin(GL_POLYGON)
@@ -119,13 +112,14 @@ class SliceCanvas(glcanvas.GLCanvas):
 #            glVertex(0.9, 0.9)
 #            glVertex(-0.9, 0.9)
 #            glEnd()
-#            self.SwapBuffers()
+            self.SwapBuffers()
 
 
 class ModelCanvas(glcanvas.GLCanvas):
 
     def __init__(self, parent):
         glcanvas.GLCanvas.__init__(self, parent, -1, size=parent.Size)
+        self.parent = parent
         self.model = None
         self.lastx = self.x = 30
         self.lasty = self.y = 30
@@ -141,6 +135,7 @@ class ModelCanvas(glcanvas.GLCanvas):
 
     def set_model(self, model):
         self.model = model
+
         glNewList(MODEL_LIST_ID, GL_COMPILE)
         glColor(1, 0, 0)
         glBegin(GL_TRIANGLES)
@@ -151,6 +146,8 @@ class ModelCanvas(glcanvas.GLCanvas):
                 glVertex3f(p.x, p.y, p.z)
         glEnd()
         glEndList()
+
+        self.Refresh()
         self.onPaint()
 
     def onEraseBackground(self, event):
@@ -160,8 +157,9 @@ class ModelCanvas(glcanvas.GLCanvas):
         try:
             wx.PaintDC(self)
         except:
+            print 'error in wx.PaintDC(self)'
             pass
-        if not(self.model is None):
+        if self.model:
             self.SetCurrent()
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
             self.setup_glcontext()
@@ -208,6 +206,7 @@ class ModelCanvas(glcanvas.GLCanvas):
     def onSize(self, event):
         if self.GetContext():
             self.SetCurrent()
+            self.Size = self.parent.Size
             self.setup_viewport()
         self.Refresh()
         event.Skip()
@@ -278,6 +277,7 @@ class ControlPanel(wx.Panel):
         wx.Panel.__init__(self, parent, -1)
         self.parent = parent
         self.txt_fields = {}
+        self.buttons = {}
         self.create_controls()
 
     def create_controls(self):
@@ -347,9 +347,11 @@ class ControlPanel(wx.Panel):
         sizer.Add(flex, 1, wx.EXPAND|wx.ALL, 2)
         button_one = wx.Button(self, -1, "Slice one layer")
         button_one.Bind(wx.EVT_BUTTON, self.parent.onSlice)
+        self.buttons['one'] = button_one
         sizer.Add(button_one, 0, wx.EXPAND|wx.ALL)
         button_all = wx.Button(self, -1, "Start slicing")
         button_all.Bind(wx.EVT_BUTTON, self.parent.onStartSlicing)
+        self.buttons['all'] = button_all
         sizer.Add(button_all, 0, wx.EXPAND|wx.ALL)
         return sizer
 
@@ -388,6 +390,10 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_TIMER, self.onTickSlicing, self.timer)
 
         self.z = 0
+
+        self.left_panel.txt_fields["z"].SetLabel("%.2f" % 0)
+        self.left_panel.txt_fields["dz"].SetLabel("%.2f" % 1)
+        self.left_panel.txt_fields["dt"].SetLabel("%d" % 200)
 
     def menu_data(self):
         return (("&File", ("&Open\tCtrl+o", "Open CAD file", self.onOpen, wx.ID_OPEN),
@@ -429,6 +435,8 @@ class MainFrame(wx.Frame):
             self.status_bar.SetStatusText(path)
             try:
                 model = stl_utils.StlModel(path)
+                zoom = 300 / model.max_size()
+                model.zoom(zoom)
             except:
                 wx.MessageBox("Cannot open " + path, 'Error')
             else:
@@ -443,25 +451,28 @@ class MainFrame(wx.Frame):
             wx.MessageBox("load a CAD model first", "warning")
         else:
             s = self.left_panel.txt_fields["z"].Value
-            self.slice_canvas.set_slice(slice_utils.Slice(self.model, float(s)) )
+            self.slice_canvas.set_slice(slice_utils.Slice(self.model, float(s) + self.model.ex['minz']) )
 
     def onStartSlicing(self, event):
         if self.timer.IsRunning():
             self.timer.Stop()
             print "slicing stopped!"
+            self.left_panel.buttons['all'].SetLabel("Start slicing")
         else:
             print "starting slicing..."
             self.z = float(self.left_panel.txt_fields["z"].Value)
             self.timer.Start(float(self.left_panel.txt_fields["dt"].Value))
+            self.left_panel.buttons['all'].SetLabel("Stop slicing")
 
     def onTickSlicing(self, event):
         self.z += float(self.left_panel.txt_fields["dz"].Value)
-        if self.z > self.model.ex['maxz']:
+        self.left_panel.txt_fields["z"].SetLabel("%.2f" % self.z)
+        if self.z + self.model.ex['minz'] > self.model.ex['maxz']:
             self.timer.Stop()
+            self.left_panel.buttons['all'].SetLabel("Start slicing")
             print "Finish!"
-            return
-        print "Slicing %.2f" % self.z
-        self.slice_canvas.set_slice(slice_utils.Slice(self.model, self.z) )
+        print "Slicing %.2f" % (self.z + self.model.ex['minz'])
+        self.slice_canvas.set_slice(slice_utils.Slice(self.model, self.z + self.model.ex['minz']) )
 
     def onQuit(self, event):
         exit(0)

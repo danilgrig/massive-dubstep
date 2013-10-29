@@ -59,7 +59,7 @@ class StlModel:
         while line.startswith('facet'):
             self.facets.append(self.read_facet(f))
             line = f.readline().strip()
-        if line != ('endsolid %s' % name):
+        if line != ('endsolid %s' % name) and line != "endsolid":
             raise FormatSTLError('Expected "endsolid %s", got "%s"' % (name, line))
 
     def parse_bin(self):
@@ -89,7 +89,7 @@ class StlModel:
     def parse(self):
         f = open(self.filename, 'r')
         data = f.read()
-        if "facet normal" in data[1:300] and "outer loop" in data[1:300]:
+        if "facet normal" in data[0:300] and "outer loop" in data[0:300]:
             self.parse_text()
         else:
             self.parse_bin()
@@ -162,6 +162,6 @@ class StlModel:
 
     def max_size(self):
         max_v = 0
-        for v in self.ex.values():
+        for v in (self.ex['minx'], self.ex['maxx'], self.ex['miny'], self.ex['maxy'], self.ex['minz'], self.ex['maxz']):
             max_v = max(max_v, abs(v))
         return max_v

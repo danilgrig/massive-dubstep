@@ -5,10 +5,10 @@ from interval_tree import IntervalTree
 logging.basicConfig(format=u'%(levelname)-8s [%(asctime)s] %(message)s',
                     level=logging.DEBUG, filename=u'sliser.log')
 
-STEP       = 0.1
-CORRECTION = 0.0001
+STEP       = 0.7
+CORRECTION = 0.001
 #EPS        = 0.001
-MAXSIZE    = 350
+MAXSIZE    = 300
 MAXFACETS  = 30000
 
 
@@ -243,8 +243,8 @@ class Slice:
 if __name__ == '__main__':
 #    model = stl_utils.StlModel('C:\\calibration\\pudge.stl')
 #    model.zoom(0.1)
-    model = stl_utils.StlModel('stl_examples\\pudge.stl')
-    model.zoom(0.08)
+    model = stl_utils.StlModel('stl_examples\\_33x20.STL')
+    model.zoom(1)
     slice = Slice(model, 10)
     start = time()
     for loop in slice.get_loops():
