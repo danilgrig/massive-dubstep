@@ -43,13 +43,15 @@ class SliceCanvas(glcanvas.GLCanvas):
         self.Bind(wx.EVT_PAINT, self.onPaint)
         self.Refresh()
 
+    def clear(self):
+        #self.SetCurrent()
+        glClear(GL_COLOR_BUFFER_BIT)
+        self.SwapBuffers()
 
     def onEraseBackground(self, event):
         pass # Do nothing, to avoid flashing on MSW.
 
     def set_slice(self, slice):
-        #if self.slice:
-        #    glDeleteLists(SLICE_LIST_ID, SLICE_LIST_ID + 1)
         self.slice = slice
         lines = self.slice.fully_scan()
         glNewList(SLICE_LIST_ID, GL_COMPILE)
@@ -61,7 +63,6 @@ class SliceCanvas(glcanvas.GLCanvas):
         glEnd()
         glEndList()
         self.Refresh()
-        self.onPaint()
 
     def draw_loops(self):
         loops = self.slice.get_loops()
@@ -407,6 +408,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.onQuit)
         self.projector_frame = ProjectorFrame(self)
 
+
     def menu_data(self):
         return (("&File", ("&Open\tCtrl+o", "Open CAD file", self.onOpen, wx.ID_OPEN),
                           ("", "", "", ""),
@@ -487,6 +489,8 @@ class MainFrame(wx.Frame):
         if self.z + self.model.ex['minz'] > self.model.ex['maxz']:
             self.timer.Stop()
             self.left_panel.buttons['all'].SetLabel("Start slicing")
+            if self.projector_frame:
+                self.projector_frame.canvas.clear()
             print "Finish!"
         print "Slicing %.2f" % (self.z + self.model.ex['minz'])
         current_slice = slice_utils.Slice(self.model, self.z + self.model.ex['minz'])
@@ -516,6 +520,7 @@ class ProjectorFrame(wx.Frame):
     def __init__(self, parent):
         wx.Frame.__init__(self, None, size=(500,500), title='Projector Frame')
         self.canvas = SliceCanvas(self)
+
 
 
 
