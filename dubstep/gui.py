@@ -44,7 +44,7 @@ class SliceCanvas(glcanvas.GLCanvas):
         self.Refresh()
 
     def clear(self):
-        #self.SetCurrent()
+        self.SetCurrent()
         glClear(GL_COLOR_BUFFER_BIT)
         self.SwapBuffers()
 
@@ -52,6 +52,7 @@ class SliceCanvas(glcanvas.GLCanvas):
         pass # Do nothing, to avoid flashing on MSW.
 
     def set_slice(self, slice):
+        self.onPaint()
         self.slice = slice
         lines = self.slice.fully_scan()
         glNewList(SLICE_LIST_ID, GL_COMPILE)
