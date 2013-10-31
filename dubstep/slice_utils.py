@@ -5,7 +5,7 @@ from interval_tree import IntervalTree
 logging.basicConfig(format=u'%(levelname)-8s [%(asctime)s] %(message)s',
                     level=logging.DEBUG, filename=u'sliser.log')
 
-STEP       = 0.7
+STEP       = 0.5
 CORRECTION = 0.001
 #EPS        = 0.001
 MAXSIZE    = 300
@@ -22,6 +22,8 @@ class SizeSliceError(Exception):
 
 class Slice:
     def __init__(self, model, z):
+        self.calculated_fully_scan = None;
+        self.calculated_get_loops = None;
         self.stl_model = model
         self.z = z
         self.lines = []
@@ -87,6 +89,9 @@ class Slice:
         if len(self.lines) <= 1:
             return []
 
+        if not self.calculated_fully_scan is None:
+            return self.calculated_fully_scan
+
         self.tree_x = IntervalTree(len(self.sorted_y))
         for line in self.lines:
             l = self.find_y(line.p1.y, False)
@@ -113,6 +118,7 @@ class Slice:
                 y += CORRECTION
                 number_tries += 1
 
+        self.calculated_fully_scan = ans
         return ans
 
     #scans only significant rows
@@ -201,6 +207,9 @@ class Slice:
         return ans
 
     def get_loops(self):
+        if not self.calculated_get_loops is None:
+            return self.calculated_get_loops
+
         ans = []
 
         checked = []
@@ -237,19 +246,34 @@ class Slice:
                 checked[nearest_idx] = True
             if len(loop) > 2:
                 ans.append(loop)
+        self.calculated_get_loops = ans
         return ans
 
 
 if __name__ == '__main__':
 #    model = stl_utils.StlModel('C:\\calibration\\pudge.stl')
 #    model.zoom(0.1)
-    model = stl_utils.StlModel('stl_examples\\_33x20.STL')
-    model.zoom(1)
+    start = time()
+    model = stl_utils.StlModel('stl_examples\\pencildome.STL')
+    end = time()
+    print "load_time = %f" % (end - start)
+
+    start = time()
+    model.zoom(8)
+    end = time()
+    print "zoom_time = %f" % (end - start)
+
+    start = time()
     slice = Slice(model, 10)
+    end = time()
+    print "prepare_slice_time = %f" % (end - start)
+
     start = time()
     for loop in slice.get_loops():
-        print counter_clock_wise(loop)
+#    for loop in slice.fully_scan():
+        pass
+#        print counter_clock_wise(loop)
 #        print p
 #        print ' '.join(map(str, list(line)))
     end = time()
-    print "time = %f" % (end - start)
+    print "making_slice_time = %f" % (end - start)

@@ -221,6 +221,20 @@ class Vector3:
         s = 'Vector3(%f, %f, %f) ' % (self.x, self.y, self.z)
         return s
 
+    def __idiv__(self, r):
+        assert not equal(r, 0)
+        self.x /= r
+        self.y /= r
+        self.z /= r
+
+    def __imul__(self, r):
+        self.x *= r
+        self.y *= r
+        self.z *= r
+
+    def normalize(self):
+        self.__idiv__(math.sqrt(self.x**2 + self.y**2 + self.z**2) )
+
 
 class Facet:
     def __init__(self, p1, p2, p3):
@@ -229,6 +243,7 @@ class Facet:
         v2 = Vector3(p3, p1)
         n = cross3(v1, v2)
         self.normal = Vector3(Point3(n.x, n.y, n.z))
+        self.normal.normalize()
 
     def __str__(self):
         s = 'normal: ' + str(self.normal)
@@ -327,8 +342,8 @@ class Facet:
             logging.error("Error in intersect: n > 1")
 
         v = cross2(self.normal, Vector3(Point3(line.p2.x, line.p2.y), Point3(line.p1.x, line.p1.y)))
-        if equal(v, 0.0):
-            logging.info("geometry: v == 0")
+#        if equal(v, 0.0):
+#            logging.info("geometry: v == 0")
         if v < 0.0:
             line.swap()
         return line

@@ -30,7 +30,8 @@ def convertYToOpenGL(y):
 
 MODEL_LIST_ID = 1000
 SLICE_LIST_ID = 1001
-
+#SLICE_METHOD = 'fully_scan'
+SLICE_METHOD = 'loops'
 
 class SliceCanvas(glcanvas.GLCanvas):
 
@@ -54,15 +55,35 @@ class SliceCanvas(glcanvas.GLCanvas):
     def set_slice(self, slice):
         self.onPaint()
         self.slice = slice
-        lines = self.slice.fully_scan()
-        glNewList(SLICE_LIST_ID, GL_COMPILE)
-        glBegin(GL_LINES)
-        glColor3d(1, 1, 1)
-        for line in lines:
-            for p in line:
-                glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
-        glEnd()
-        glEndList()
+        if SLICE_METHOD == 'fully_scan':
+            lines = self.slice.fully_scan()
+            glNewList(SLICE_LIST_ID, GL_COMPILE)
+            glBegin(GL_LINES)
+            glColor3d(1, 1, 1)
+            for line in lines:
+                for p in line:
+                    glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+            glEnd()
+            glEndList()
+        elif SLICE_METHOD == 'loops':
+            loops = self.slice.get_loops()
+            counter_clock_wise = map(geometry.counter_clock_wise, loops)
+            glNewList(SLICE_LIST_ID, GL_COMPILE)
+            i = 0
+            for loop in loops:
+                glBegin(GL_POLYGON)
+                if counter_clock_wise[i]:
+                    glColor3d(1, 1, 1)
+                else:
+                    glColor3d(0, 0, 0)
+                for p in loop:
+                    glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+                glEnd()
+                i += 1
+            glEndList()
+        else:
+            print "unsupposed slice method"
+            exit(0)
         self.Refresh()
 
     def draw_loops(self):
@@ -270,8 +291,8 @@ class ModelCanvas(glcanvas.GLCanvas):
         ambientLight = [0.2, 0.2, 0.2, 1.0]
         diffuseLight = [0.8, 0.8, 0.8, 1.0]
         specularLight = [0.5, 0.5, 0.5, 1.0]
-        position = [-1.5, 1.0, -4.0, 1.0]
-        position = [-15.0, 30.0, -40.0, 1.0]
+        position = [2500.0, -3000.0, 4000.0, 1.0]
+        #position = [-15.0, 30.0, -40.0, 1.0]
 
         glLightfv(GL_LIGHT0, GL_AMBIENT, ambientLight)
         glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuseLight)
@@ -279,7 +300,7 @@ class ModelCanvas(glcanvas.GLCanvas):
         glLightfv(GL_LIGHT0, GL_POSITION, position)
         glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.2, 0.2, 0.2, 1.0])
 
-        mcolor = [ 0.0, 0.0, 0.4, 1.0]
+        mcolor = [0.0, 0.0, 0.4, 1.0]
         glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, mcolor)
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_CULL_FACE)
@@ -463,8 +484,8 @@ class MainFrame(wx.Frame):
             self.status_bar.SetStatusText(path)
             try:
                 model = stl_utils.StlModel(path)
-                zoom = 300 / model.max_size()
-                model.zoom(zoom)
+                #zoom = 300 / model.max_size()
+                #model.zoom(zoom)
             except:
                 wx.MessageBox("Cannot open " + path, 'Error')
             else:
@@ -545,8 +566,8 @@ class MainApp(wx.App):
 
     def OnInit(self):
         self.frame = MainFrame()
-        self.frame.Show()
         self.frame.projector_frame.Show()
+        self.frame.Show()
         return True
 
 if __name__ == '__main__':

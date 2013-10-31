@@ -57,7 +57,11 @@ class StlModel:
 
         line = f.readline().strip()
         while line.startswith('facet'):
-            self.facets.append(self.read_facet(f))
+            try:
+                facet = self.read_facet(f)
+                self.facets.append(facet)
+            except AssertionError:
+                pass
             line = f.readline().strip()
         if line != ('endsolid %s' % name) and line != "endsolid":
             raise FormatSTLError('Expected "endsolid %s", got "%s"' % (name, line))
@@ -78,9 +82,13 @@ class StlModel:
                 for i in range(3):
                     points.append(struct.unpack('<fff', file.read(12)))
 
-                f = Facet(Point3(points[0]), Point3(points[1]), Point3(points[2]) )
-                f.normal = Vector3(Point3(normal))
-                self.facets.append(f)
+                try:
+                    f = Facet(Point3(points[0]), Point3(points[1]), Point3(points[2]) )
+                    f.normal = Vector3(Point3(normal))
+                    f.normal.normalize()
+                    self.facets.append(f)
+                except AssertionError:
+                    pass
                 attribute_byte_count = file.read(2)
         except:
             self.facets = []
