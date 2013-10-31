@@ -179,7 +179,18 @@ class ModelCanvas(glcanvas.GLCanvas):
             glRotatef(self.xangle, 1, 0, 0)
             glRotatef(self.yangle, 0, 1, 0)
             # Move model to origin
-            glTranslatef(-self.model.ex['xcenter'], -self.model.ex['ycenter'], -self.model.ex['zcenter'])
+            if self.model.direction == "+Z":
+                glTranslatef(-self.model.ex['xcenter'], -self.model.ex['ycenter'], -self.model.ex['zcenter'])
+            elif self.model.direction == "-Z":
+                glTranslatef(-self.model.ex['xcenter'], -self.model.ex['ycenter'], self.model.ex['zcenter'])
+            elif self.model.direction == "+Y":
+                glTranslatef(-self.model.ex['zcenter'], -self.model.ex['xcenter'], -self.model.ex['ycenter'])
+            elif self.model.direction == "-Y":
+                glTranslatef(-self.model.ex['zcenter'], self.model.ex['xcenter'], -self.model.ex['ycenter'])
+            elif self.model.direction == "+X":
+                glTranslatef(-self.model.ex['ycenter'], -self.model.ex['zcenter'], -self.model.ex['xcenter'])
+            elif self.model.direction == "-X":
+                glTranslatef(self.model.ex['ycenter'], -self.model.ex['zcenter'], -self.model.ex['xcenter'])
 
             glCallList(MODEL_LIST_ID)
             self.SwapBuffers()
@@ -336,7 +347,8 @@ class ControlPanel(wx.Panel):
         directions = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"]
         combo = wx.ComboBox(self, -1, choices=directions)
         combo.SetEditable(False)
-        combo.SetSelection(0)
+        # Choose direction = "+Z"
+        combo.SetSelection(4)
         combo.Bind(wx.EVT_COMBOBOX, self.parent.onCombo)
         self.combo = combo
         sizer.Add(combo, -1, wx.EXPAND)
