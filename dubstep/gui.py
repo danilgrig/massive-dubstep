@@ -38,24 +38,28 @@ class SliceCanvas(glcanvas.GLCanvas):
         glcanvas.GLCanvas.__init__(self, parent, -1, size=parent.Size)
         self.parent = parent
         self.slice = None
-
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.onEraseBackground)
         self.Bind(wx.EVT_SIZE, self.onSize)
         self.Bind(wx.EVT_PAINT, self.onPaint)
         self.Refresh()
 
+
     def onEraseBackground(self, event):
         pass # Do nothing, to avoid flashing on MSW.
 
     def set_slice(self, slice):
-        if self.slice:
-            glDeleteLists(SLICE_LIST_ID, SLICE_LIST_ID + 1)
+        #if self.slice:
+        #    glDeleteLists(SLICE_LIST_ID, SLICE_LIST_ID + 1)
         self.slice = slice
-
+        lines = self.slice.fully_scan()
         glNewList(SLICE_LIST_ID, GL_COMPILE)
-        self.draw_full_scan()
+        glBegin(GL_LINES)
+        glColor3d(1, 1, 1)
+        for line in lines:
+            for p in line:
+                glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+        glEnd()
         glEndList()
-
         self.Refresh()
         self.onPaint()
 
@@ -82,12 +86,13 @@ class SliceCanvas(glcanvas.GLCanvas):
 
     def onSize(self, event):
         if self.GetContext():
-            self.Size = self.parent.Size
             self.SetCurrent()
+            self.Size = self.parent.Size
             size = self.GetClientSize()
             glViewport(0, 0, size.width, size.height)
         self.Refresh()
         event.Skip()
+
 
     def onPaint(self, event=None):
         try:
@@ -133,6 +138,7 @@ class ModelCanvas(glcanvas.GLCanvas):
         self.Bind(wx.EVT_LEFT_UP, self.onMouseUp)
         self.Bind(wx.EVT_MOTION, self.onMouseMotion)
 
+
     def set_model(self, model):
         self.model = model
 
@@ -157,7 +163,7 @@ class ModelCanvas(glcanvas.GLCanvas):
         try:
             wx.PaintDC(self)
         except:
-            print 'error in wx.PaintDC(self)'
+            print 'error in wx.PaintDC(self) - ModelCanvas'
             pass
         if self.model:
             self.SetCurrent()
@@ -242,12 +248,11 @@ class ModelCanvas(glcanvas.GLCanvas):
         glOrtho(left, right, bottom, top, near, far)
 
     def setup_glcontext(self):
+        glEnable(GL_NORMALIZE)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
         glEnable(GL_LIGHTING)
         glEnable(GL_LIGHT0)
-
-        glEnable(GL_NORMALIZE)
 
         ambientLight = [0.2, 0.2, 0.2, 1.0]
         diffuseLight = [0.8, 0.8, 0.8, 1.0]
@@ -278,6 +283,7 @@ class ControlPanel(wx.Panel):
         self.parent = parent
         self.txt_fields = {}
         self.buttons = {}
+        self.combo = None
         self.create_controls()
 
     def create_controls(self):
@@ -329,6 +335,8 @@ class ControlPanel(wx.Panel):
         combo = wx.ComboBox(self, -1, choices=directions)
         combo.SetEditable(False)
         combo.SetSelection(0)
+        combo.Bind(wx.EVT_COMBOBOX, self.parent.onCombo)
+        self.combo = combo
         sizer.Add(combo, -1, wx.EXPAND)
         return sizer
 
@@ -386,6 +394,7 @@ class MainFrame(wx.Frame):
         slice_sizer.Add(self.slice_canvas, 0, wx.EXPAND)
         self.slice_panel.SetSizer(slice_sizer)
 
+
         self.timer = wx.Timer(self, -1)
         self.Bind(wx.EVT_TIMER, self.onTickSlicing, self.timer)
 
@@ -394,6 +403,9 @@ class MainFrame(wx.Frame):
         self.left_panel.txt_fields["z"].SetLabel("%.2f" % 0)
         self.left_panel.txt_fields["dz"].SetLabel("%.2f" % 1)
         self.left_panel.txt_fields["dt"].SetLabel("%d" % 200)
+
+        self.Bind(wx.EVT_CLOSE, self.onQuit)
+        self.projector_frame = ProjectorFrame(self)
 
     def menu_data(self):
         return (("&File", ("&Open\tCtrl+o", "Open CAD file", self.onOpen, wx.ID_OPEN),
@@ -424,6 +436,7 @@ class MainFrame(wx.Frame):
     def set_model(self, model):
         self.model = model
         self.left_panel.set_dimensions(model.ex)
+        #self.model.changeDirection(self.left_panel.combo.Value)
         self.model_canvas.set_model(model)
         print "There are %d facets in the model" % len(self.model.facets)
 
@@ -451,7 +464,11 @@ class MainFrame(wx.Frame):
             wx.MessageBox("load a CAD model first", "warning")
         else:
             s = self.left_panel.txt_fields["z"].Value
-            self.slice_canvas.set_slice(slice_utils.Slice(self.model, float(s) + self.model.ex['minz']) )
+            current_slice = slice_utils.Slice(self.model, float(s) + self.model.ex['minz'])
+            self.slice_canvas.set_slice(current_slice)
+            # Check if project_frame exist before setting the slice
+            if self.projector_frame:
+                self.projector_frame.canvas.set_slice(current_slice)
 
     def onStartSlicing(self, event):
         if self.timer.IsRunning():
@@ -472,10 +489,20 @@ class MainFrame(wx.Frame):
             self.left_panel.buttons['all'].SetLabel("Start slicing")
             print "Finish!"
         print "Slicing %.2f" % (self.z + self.model.ex['minz'])
-        self.slice_canvas.set_slice(slice_utils.Slice(self.model, self.z + self.model.ex['minz']) )
+        current_slice = slice_utils.Slice(self.model, self.z + self.model.ex['minz'])
+        self.slice_canvas.set_slice(current_slice)
+        # Check if project_frame exist before setting the slice
+        if self.projector_frame:
+            self.projector_frame.canvas.set_slice(current_slice)
+
+    def onCombo(self, event):
+        if not self.model is None:
+            self.model.changeDirection(self.left_panel.combo.Value)
 
     def onQuit(self, event):
-        exit(0)
+        if self.projector_frame:
+            self.projector_frame.Close()
+        self.Destroy()
 
     def onAbout(self, event):
         info = wx.AboutDialogInfo()
@@ -483,6 +510,14 @@ class MainFrame(wx.Frame):
         info.Version = "0.01"
         info.Description = "Esho ne pridumali"
         wx.AboutBox(info)
+
+
+class ProjectorFrame(wx.Frame):
+    def __init__(self, parent):
+        wx.Frame.__init__(self, None, size=(500,500), title='Projector Frame')
+        self.canvas = SliceCanvas(self)
+
+
 
 
 class MainApp(wx.App):
@@ -493,6 +528,7 @@ class MainApp(wx.App):
     def OnInit(self):
         self.frame = MainFrame()
         self.frame.Show()
+        self.frame.projector_frame.Show()
         return True
 
 if __name__ == '__main__':
