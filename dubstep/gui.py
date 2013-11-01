@@ -30,8 +30,8 @@ def convertYToOpenGL(y):
 
 MODEL_LIST_ID = 1000
 SLICE_LIST_ID = 1001
-#SLICE_METHOD = 'fully_scan'
-SLICE_METHOD = 'loops'
+SLICE_METHOD = 'fully_scan'
+#SLICE_METHOD = 'loops'
 
 class SliceCanvas(glcanvas.GLCanvas):
 
@@ -476,6 +476,21 @@ class MainFrame(wx.Frame):
         self.model_canvas.set_model(model)
         print "There are %d facets in the model" % len(self.model.facets)
 
+    def set_slice(self, z):
+        try:
+            slice = slice_utils.Slice(self.model, z)
+            self.slice_canvas.set_slice(slice)
+            # Check if project_frame exist before setting the slice
+            if self.projector_frame:
+                self.projector_frame.canvas.set_slice(slice)
+        except:
+            print 'failed in slice'
+            self.stop_timer()
+
+    def stop_timer(self):
+            self.timer.Stop()
+            self.left_panel.buttons['all'].SetLabel("Start slicing")
+
     def onOpen(self, event):
         wildcard = "CAD std files (*.stl)|*.stl|All files (*.*)|*.*"
         dlg = wx.FileDialog(None, "Open CAD stl file", os.getcwd(), "", wildcard, wx.OPEN)
@@ -495,19 +510,17 @@ class MainFrame(wx.Frame):
         self.Refresh()
 
     def onSlice(self, event):
-        print 'on slice'
         if self.model is None:
             wx.MessageBox("load a CAD model first", "warning")
         else:
-            s = self.left_panel.txt_fields["z"].Value
-            current_slice = slice_utils.Slice(self.model, float(s) + self.model.ex['minz'])
-            self.slice_canvas.set_slice(current_slice)
-            # Check if project_frame exist before setting the slice
-            if self.projector_frame:
-                self.projector_frame.canvas.set_slice(current_slice)
+            z = float(self.left_panel.txt_fields["z"].Value)
+            print "Slicing %.2f" % self.z
+            self.set_slice(z + self.model.ex['minz'])
 
     def onStartSlicing(self, event):
-        if self.timer.IsRunning():
+        if self.model is None:
+            wx.MessageBox("load a CAD model first", "warning")
+        elif self.timer.IsRunning():
             self.timer.Stop()
             print "slicing stopped!"
             self.left_panel.buttons['all'].SetLabel("Start slicing")
@@ -520,18 +533,15 @@ class MainFrame(wx.Frame):
     def onTickSlicing(self, event):
         self.z += float(self.left_panel.txt_fields["dz"].Value)
         self.left_panel.txt_fields["z"].SetLabel("%.2f" % self.z)
+
+        print "Slicing %.2f" % self.z
+        self.set_slice(self.z + self.model.ex['minz'])
+
         if self.z + self.model.ex['minz'] > self.model.ex['maxz']:
-            self.timer.Stop()
-            self.left_panel.buttons['all'].SetLabel("Start slicing")
+            self.stop_timer()
             if self.projector_frame:
                 self.projector_frame.canvas.clear()
             print "Finish!"
-        print "Slicing %.2f" % (self.z + self.model.ex['minz'])
-        current_slice = slice_utils.Slice(self.model, self.z + self.model.ex['minz'])
-        self.slice_canvas.set_slice(current_slice)
-        # Check if project_frame exist before setting the slice
-        if self.projector_frame:
-            self.projector_frame.canvas.set_slice(current_slice)
 
     def onCombo(self, event):
         if not self.model is None:

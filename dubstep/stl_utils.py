@@ -1,5 +1,6 @@
 from geometry import *
 import logging
+from interval_tree import IntervalTree
 logging.basicConfig(format=u'%(levelname)-8s [%(asctime)s] %(message)s',
                     level=logging.DEBUG, filename=u'sliser.log')
 
@@ -18,8 +19,60 @@ class StlModel:
         self.facets = []
         self.parse()
         self.direction = '+Z'
+        self.ex = dict()
+        self.tree = IntervalTree(0)
+        self.sorted_z = []
+        self.update()
+
+    def update(self):
+        logging.info("Current scales:")
         self.ex = self.get_extremal()
         self.log_scales()
+        logging.info('Making tree for STL-model...')
+        self.make_tree()
+        logging.info('Finished tree.')
+
+    def make_tree(self):
+        i = 0
+        self.sorted_z = []
+        for facet in self.facets:
+            self.sorted_z.append((facet.minz(), i))
+            self.sorted_z.append((facet.maxz(), i))
+            i += 1
+        self.sorted_z.sort()
+
+        self.tree = IntervalTree(len(self.sorted_z))
+        for facet in self.facets:
+            l = self.find_z(facet.minz(), True)
+            r = self.find_z(facet.maxz(), False)
+            self.tree.push(l, r - 1, facet)
+
+    def intersect_facets(self, z):
+        #print len(self.facets)
+        #print len(self.tree.get(self.find_z(z)))
+        return self.tree.get(self.find_z(z))
+        #return self.facets
+
+    #if bot: returns first element >= z
+    #  else: returns first element > z
+    def find_z(self, z, bot=False):
+        l = 0
+        r = len(self.sorted_z)
+        while r > l:
+            m = (r + l) // 2
+            if bot:
+                if self.sorted_z[m][0] + EPS > z:
+                    r = m
+                else:
+                    l = m + 1
+            else:
+                if self.sorted_z[m][0] - EPS > z:
+                    r = m
+                else:
+                    l = m + 1
+
+        # l == r
+        return l
 
     def read_facet(self, f):
         line = f.readline().strip()
@@ -136,37 +189,27 @@ class StlModel:
         for f in self.facets:
             f.changeDirection(direction)
 
-        logging.info("New scales:")
-        self.ex = self.get_extremal()
-        self.log_scales()
+        self.update()
 
     def zoom_x(self, scale):
         for f in self.facets:
             f.zoom_x(scale)
-        logging.info("New scales:")
-        self.ex = self.get_extremal()
-        self.log_scales()
+        self.update()
 
     def zoom_y(self, scale):
         for f in self.facets:
             f.zoom_y(scale)
-        logging.info("New scales:")
-        self.ex = self.get_extremal()
-        self.log_scales()
+        self.update()
 
     def zoom_z(self, scale):
         for f in self.facets:
             f.zoom_z(scale)
-        logging.info("New scales:")
-        self.ex = self.get_extremal()
-        self.log_scales()
+        self.update()
 
     def zoom(self, scale):
         for f in self.facets:
             f.zoom(scale)
-        logging.info("New scales:")
-        self.ex = self.get_extremal()
-        self.log_scales()
+        self.update()
 
     def max_size(self):
         max_v = 0

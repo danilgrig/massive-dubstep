@@ -6,8 +6,7 @@ logging.basicConfig(format=u'%(levelname)-8s [%(asctime)s] %(message)s',
                     level=logging.DEBUG, filename=u'sliser.log')
 
 STEP       = 0.5
-CORRECTION = 0.001
-#EPS        = 0.001
+CORRECTION = 0.01
 MAXSIZE    = 300
 MAXFACETS  = 30000
 
@@ -22,6 +21,7 @@ class SizeSliceError(Exception):
 
 class Slice:
     def __init__(self, model, z):
+        print 'new slice %.2f' % z
         self.calculated_fully_scan = None;
         self.calculated_get_loops = None;
         self.stl_model = model
@@ -38,7 +38,7 @@ class Slice:
             logging.error("Cant slice %d facets. The max supposed numbers of facets is %.2f" %
                           (len(model.facets), MAXFACETS))
             raise SizeSliceError("Cant slice so big model")
-        for facet in model.facets:
+        for facet in model.intersect_facets(z):
             if facet.isIntersect(z):
                 line = facet.intersect(z)
                 if line.length > EPS:
@@ -259,7 +259,7 @@ if __name__ == '__main__':
     print "load_time = %f" % (end - start)
 
     start = time()
-    model.zoom(8)
+    model.zoom(1)
     end = time()
     print "zoom_time = %f" % (end - start)
 

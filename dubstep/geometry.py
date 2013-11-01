@@ -222,6 +222,8 @@ class Vector3:
         return s
 
     def __idiv__(self, r):
+        #if equal(r, 0):
+        #    r = 1
         assert not equal(r, 0)
         self.x /= r
         self.y /= r
@@ -266,6 +268,21 @@ class Facet:
         yield self.points[0]
         yield self.points[1]
         yield self.points[2]
+
+    def revert(self):
+        yield self.points[2]
+        yield self.points[1]
+        yield self.points[0]
+
+    def minz(self):
+        ans = min(self.points[0].z, self.points[1].z)
+        ans = min(ans, self.points[2].z)
+        return ans
+
+    def maxz(self):
+        ans = max(self.points[0].z, self.points[1].z)
+        ans = max(ans, self.points[2].z)
+        return ans
 
     def changeDirection(self, direction):
         if direction == '+X':
