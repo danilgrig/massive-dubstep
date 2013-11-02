@@ -36,6 +36,7 @@ def counter_clock_wise(loop):
         l1 = p1.dist(p2)
         l2 = p2.dist(p)
         cos = dot(Vector3(p2, p1), Vector3(p, p2)) / (l1 * l2)
+        cos = min(cos, 1.0)
         sin = cross2(Vector3(p2, p1), Vector3(p, p2)) / (l1 * l2)
 
         assert not equal(sin, 0) or cos > 0

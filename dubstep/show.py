@@ -13,10 +13,10 @@ except ImportError:
     raise ImportError, "Required dependency OpenGL not present"
 
 def convertXToOpenGL(x):
-    return x / 100
+    return x / 300
 
 def convertYToOpenGL(x):
-    return x / 100
+    return x / 300
 
 class GLFrame(wx.Frame):
     """A simple class for using OpenGL with wxPython."""
@@ -49,7 +49,7 @@ class GLFrame(wx.Frame):
         #model = stl_utils.StlModel('pudge.stl')
         self.model = stl_utils.StlModel('stl_examples\\pencildome.stl')
         self.model.changeDirection("+Z")
-        self.model.zoom(1)
+        self.model.zoom(8)
    #
     # Canvas Proxy Methods
 
@@ -114,7 +114,8 @@ class GLFrame(wx.Frame):
         loops = slice.get_loops()
         for loop in loops[0:1]:
             glBegin(GL_POLYGON)
-            if counter_clock_wise(loop):
+            #glBegin(GL_LINE_STRIP)
+            if not counter_clock_wise(loop):
                 glColor3d(1, 1, 1)
             else:
                 glColor3d(0, 0, 0)
@@ -129,8 +130,27 @@ class GLFrame(wx.Frame):
         lines = slice.fully_scan()
         glBegin(GL_LINES)
         for line in lines:
-            for p in line:
-                glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+            glColor3d(1, 1, 1)
+            p = line.p1
+            glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+            glColor3d(1, 0, 0)
+            p = line.p2
+            glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+        glEnd()
+        self.SwapBuffers()
+        #import time
+        #time.sleep(1)
+
+    def draw_int_scan(self, slice):
+        lines = slice.int_scan()
+        glBegin(GL_LINES)
+        for line in lines:
+            glColor3d(1, 1, 1)
+            p = line.p1
+            glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+            glColor3d(1, 0, 0)
+            p = line.p2
+            glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
         glEnd()
         self.SwapBuffers()
         #import time
@@ -138,14 +158,10 @@ class GLFrame(wx.Frame):
 
     def OnDraw(self, *args, **kwargs):
         try:
-            slice = Slice(self.model, 30)
+            slice = Slice(self.model, 240)
             glClear(GL_COLOR_BUFFER_BIT)
-            import time
-            self.draw_full_scan(slice)
-            time.sleep(5)
-            glClear(GL_COLOR_BUFFER_BIT)
-            self.SwapBuffers()
-            self.draw_loops(slice)
+            self.draw_int_scan(slice)
+            #self.draw_full_scan(slice)
         except SizeSliceError:
             print "Cant slice model"
             exit(0)

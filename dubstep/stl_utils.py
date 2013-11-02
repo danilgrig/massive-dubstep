@@ -24,6 +24,9 @@ class StlModel:
         self.sorted_z = []
         self.update()
 
+    def __nonzero__(self):
+        return True
+
     def update(self):
         logging.info("Current scales:")
         self.ex = self.get_extremal()
@@ -48,10 +51,7 @@ class StlModel:
             self.tree.push(l, r - 1, facet)
 
     def intersect_facets(self, z):
-        #print len(self.facets)
-        #print len(self.tree.get(self.find_z(z)))
         return self.tree.get(self.find_z(z))
-        #return self.facets
 
     #if bot: returns first element >= z
     #  else: returns first element > z

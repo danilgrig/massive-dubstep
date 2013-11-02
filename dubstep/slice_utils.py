@@ -5,9 +5,9 @@ from interval_tree import IntervalTree
 logging.basicConfig(format=u'%(levelname)-8s [%(asctime)s] %(message)s',
                     level=logging.DEBUG, filename=u'sliser.log')
 
-STEP       = 0.5
-CORRECTION = 0.01
-MAXSIZE    = 300
+STEP       = 0.05
+CORRECTION = 0.001
+MAXSIZE    = 350
 MAXFACETS  = 30000
 
 
@@ -20,10 +20,12 @@ class SizeSliceError(Exception):
 
 
 class Slice:
-    def __init__(self, model, z):
+    def __init__(self, model, z, asrt=True):
         print 'new slice %.2f' % z
+        self.asrt = asrt
         self.calculated_fully_scan = None;
         self.calculated_get_loops = None;
+        self.calculated_int_scan = None;
         self.stl_model = model
         self.z = z
         self.lines = []
@@ -64,6 +66,9 @@ class Slice:
     def __len__(self):
         return len(self.lines)
 
+    def __nonzero__(self):
+        return True
+
     #Used it for find first index, self.sorted_y[idx] > y.
     #If there are numbers, equal with y, answer may be any index of them.
     def find_y(self, y, asrt=True):
@@ -85,7 +90,7 @@ class Slice:
 
     #simple fully scan each STEP row
     #returns list[Line2]
-    def fully_scan(self):
+    def fully_scan(self, int=False):
         if len(self.lines) <= 1:
             return []
 
@@ -109,9 +114,10 @@ class Slice:
         while y < maxy:
             if number_tries > 3:
                 logging.error("I tired to tries so much! ;(")
-                raise stl_utils.FormatSTLError('Cant slice')
+                if self.asrt:
+                    raise stl_utils.FormatSTLError('Cant slice')
             try:
-                ans.extend(self.get_lines_in_row(y))
+                ans.extend(self.get_lines_in_row(y, int))
                 y += STEP
                 number_tries = 0
             except AssertionError:
@@ -121,46 +127,31 @@ class Slice:
         self.calculated_fully_scan = ans
         return ans
 
-    #scans only significant rows
-    #returns list[tuple[Point2]]
-    #it wasn't a good idea. no profit
-    def intellectual_scan(self):
-        if len(self.lines) <= 1:
-            return []
+    #fing loops first
+    def int_scan(self):
+        if not self.calculated_fully_scan is None:
+            return self.calculated_int_scan
+        (loops_in, loops_out) = self.get_loops()
+        self.calculated_fully_scan = None
+        self.lines = []
+        for loop in loops_in + loops_out:
+            prev = loop[0]
+            for p in loop[1:]:
+                self.lines.append(Line2(prev, p))
+                prev = p
 
-        all_y = []
+        i = 0
+        self.sorted_y = []
         for line in self.lines:
-            all_y.append(line.p1.y)
-            all_y.append(line.p2.y)
-        all_y.sort()
-
-        ans = []
-        y_prev = all_y[0]
-        for y_next in all_y[1:]:
-            if y_next - STEP / 5 < y_prev:
-                y_prev = y_next
-                continue
-            try:
-                lines_prev = self.get_lines_in_row(y_prev + EPS)
-                lines_next = self.get_lines_in_row(y_next - EPS)
-            except:
-                logging.error("Can't get_lines_in_row. %f slice, %f row" % (self.z, y_next))
-                raise stl_utils.FormatSTLError("Can't get_lines_in_row. %f slice, %f row" % (self.z, y_next))
-                #continue
-
-            if len(lines_prev) != len(lines_next):
-                logging.error("Ooops, the lengths is not equal!")
-                raise stl_utils.FormatSTLError("Ooops, the lengths is not equal! Row %f" % y_next)
-                #continue
-
-            for i in range(len(lines_prev)):
-                ans.append((lines_prev[i].p1, lines_prev[i].p2, lines_next[i].p2, lines_next[i].p1))
-            y_prev = y_next
-
-        return ans
+            self.sorted_y.append((line.p1.y, i))
+            self.sorted_y.append((line.p2.y, -1))
+            i += 1
+        self.sorted_y.sort()
+        self.calculated_int_scan = self.fully_scan(True)
+        return self.calculated_int_scan
 
     #Remeber, it doesnt work if there is edge in the row
-    def get_lines_in_row(self, y):
+    def get_lines_in_row(self, y, int=False):
         ans = []
         intersects = []
         index = self.find_y(y)
@@ -210,7 +201,7 @@ class Slice:
         if not self.calculated_get_loops is None:
             return self.calculated_get_loops
 
-        ans = []
+        ans = ([], [])
 
         checked = []
         for j in range(len(self.lines)):
@@ -245,7 +236,12 @@ class Slice:
                 p = nearest
                 checked[nearest_idx] = True
             if len(loop) > 2:
-                ans.append(loop)
+                loop.append(loop[0])
+                if counter_clock_wise(loop):
+                    ans[0].append(loop)
+                else:
+                    ans[1].append(loop)
+
         self.calculated_get_loops = ans
         return ans
 
@@ -269,7 +265,8 @@ if __name__ == '__main__':
     print "prepare_slice_time = %f" % (end - start)
 
     start = time()
-    for loop in slice.get_loops():
+#    for loop in slice.get_loops():
+    for loop in slice.int_scan():
 #    for loop in slice.fully_scan():
         pass
 #        print counter_clock_wise(loop)

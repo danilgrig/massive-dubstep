@@ -30,8 +30,11 @@ def convertYToOpenGL(y):
 
 MODEL_LIST_ID = 1000
 SLICE_LIST_ID = 1001
-SLICE_METHOD = 'fully_scan'
+#SLICE_METHOD = 'fully_scan'
+SLICE_METHOD = 'int_scan'
 #SLICE_METHOD = 'loops'
+#almost kill program if something wrong
+ASRT = True
 
 class SliceCanvas(glcanvas.GLCanvas):
 
@@ -65,47 +68,36 @@ class SliceCanvas(glcanvas.GLCanvas):
                     glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
             glEnd()
             glEndList()
+        elif SLICE_METHOD == 'int_scan':
+            lines = self.slice.int_scan()
+            glNewList(SLICE_LIST_ID, GL_COMPILE)
+            glBegin(GL_LINES)
+            glColor3d(1, 1, 1)
+            for line in lines:
+                for p in line:
+                    glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+            glEnd()
+            glEndList()
         elif SLICE_METHOD == 'loops':
             loops = self.slice.get_loops()
-            counter_clock_wise = map(geometry.counter_clock_wise, loops)
             glNewList(SLICE_LIST_ID, GL_COMPILE)
-            i = 0
-            for loop in loops:
+            for loop in loops[0]:
                 glBegin(GL_POLYGON)
-                if counter_clock_wise[i]:
-                    glColor3d(1, 1, 1)
-                else:
-                    glColor3d(0, 0, 0)
+                glColor3d(1, 1, 1)
                 for p in loop:
                     glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
                 glEnd()
-                i += 1
+            for loop in loops[1]:
+                glBegin(GL_POLYGON)
+                glColor3d(0, 0, 0)
+                for p in loop:
+                    glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+                glEnd()
             glEndList()
         else:
             print "unsupposed slice method"
-            exit(0)
+            assert 0
         self.Refresh()
-
-    def draw_loops(self):
-        loops = self.slice.get_loops()
-        for loop in loops:
-            glBegin(GL_POLYGON)
-            if geometry.counter_clock_wise(loop):
-                glColor3d(1, 1, 1)
-            else:
-                glColor3d(0, 0, 0)
-            for p in loop:
-                glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
-            glEnd()
-
-    def draw_full_scan(self):
-        lines = self.slice.fully_scan()
-        glBegin(GL_LINES)
-        glColor3d(1, 1, 1)
-        for line in lines:
-            for p in line:
-                glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
-        glEnd()
 
     def onSize(self, event):
         if self.GetContext():
@@ -126,7 +118,6 @@ class SliceCanvas(glcanvas.GLCanvas):
         if self.slice:
             self.SetCurrent()
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-            self.draw_full_scan()
             glCallList(SLICE_LIST_ID)
             self.SwapBuffers()
         else:
@@ -435,10 +426,6 @@ class MainFrame(wx.Frame):
 
         self.z = 0
 
-        self.left_panel.txt_fields["z"].SetLabel("%.2f" % 0)
-        self.left_panel.txt_fields["dz"].SetLabel("%.2f" % 1)
-        self.left_panel.txt_fields["dt"].SetLabel("%d" % 200)
-
         self.Bind(wx.EVT_CLOSE, self.onQuit)
         self.projector_frame = ProjectorFrame(self)
 
@@ -478,7 +465,7 @@ class MainFrame(wx.Frame):
 
     def set_slice(self, z):
         try:
-            slice = slice_utils.Slice(self.model, z)
+            slice = slice_utils.Slice(self.model, z, ASRT)
             self.slice_canvas.set_slice(slice)
             # Check if project_frame exist before setting the slice
             if self.projector_frame:
@@ -499,12 +486,15 @@ class MainFrame(wx.Frame):
             self.status_bar.SetStatusText(path)
             try:
                 model = stl_utils.StlModel(path)
-                #zoom = 300 / model.max_size()
-                #model.zoom(zoom)
+                zoom = 300 / model.max_size()
+                model.zoom(zoom)
             except:
                 wx.MessageBox("Cannot open " + path, 'Error')
             else:
                 self.set_model(model)
+                self.left_panel.txt_fields["z"].SetLabel("%.2f" % 0.01)
+                self.left_panel.txt_fields["dz"].SetLabel("%.2f" % 5)
+                self.left_panel.txt_fields["dt"].SetLabel("%d" % 200)
 
         dlg.Destroy()
         self.Refresh()
