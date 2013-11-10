@@ -165,7 +165,6 @@ class ModelCanvas(glcanvas.GLCanvas):
     def set_model(self, model):
         self.model = model
         self.ex = model.ex.copy()
-        self.ex = model.ex
         self.direction = model.direction
 
         glNewList(MODEL_LIST_ID, GL_COMPILE)
@@ -198,7 +197,7 @@ class ModelCanvas(glcanvas.GLCanvas):
             self.setup_projection()
             glMatrixMode(GL_MODELVIEW)
             glLoadIdentity()
-            glTranslatef(0, 0, -self.model.ex['diameter'])
+            glTranslatef(0, 0, -self.ex['diameter'])
             # Rotate model
             glRotatef(self.xangle, 1, 0, 0)
             glRotatef(self.yangle, 0, 1, 0)
@@ -260,7 +259,7 @@ class ModelCanvas(glcanvas.GLCanvas):
         glViewport(0, 0, size.width, size.height)
 
     def setup_projection(self):
-        maxlen = self.model.ex['diameter']
+        maxlen = self.ex['diameter']
         size = self.GetClientSize()
         w = size.width
         h = size.height
