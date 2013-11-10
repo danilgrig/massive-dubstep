@@ -1,9 +1,6 @@
 import wx
-import os
 import stl_utils
 import slice_utils
-import geometry
-import time
 
 try:
     from wx import glcanvas
@@ -19,20 +16,29 @@ except ImportError, e:
     print e
     sys.exit()
 
-
+'''
 def convertXToOpenGL(x):
-    return x / 300
+    return 50 * (x + 175) / 300
 
 
 def convertYToOpenGL(y):
-    return y / 300
+    return 50 * (y - 67) / 300
+'''
 
+def convertXToOpenGL(x):
+    return (x) / 400
+
+
+def convertYToOpenGL(y):
+    return (y) / 400
 
 MODEL_LIST_ID = 1000
 SLICE_LIST_ID = 1001
-#SLICE_METHOD = 'fully_scan'
-SLICE_METHOD = 'int_scan'
+#SLICE_METHOD = 'fully_scan_old'
+SLICE_METHOD = 'fully_scan'
 #SLICE_METHOD = 'loops'
+#SLICE_METHOD = 'shape'
+
 #almost kill program if something wrong
 ASRT = True
 
@@ -58,7 +64,17 @@ class SliceCanvas(glcanvas.GLCanvas):
     def set_slice(self, slice):
         self.onPaint()
         self.slice = slice
-        if SLICE_METHOD == 'fully_scan':
+        if SLICE_METHOD == 'fully_scan_old':
+            lines = self.slice.fully_scan_old()
+            glNewList(SLICE_LIST_ID, GL_COMPILE)
+            glBegin(GL_LINES)
+            glColor3d(1, 1, 1)
+            for line in lines:
+                for p in line:
+                    glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+            glEnd()
+            glEndList()
+        elif SLICE_METHOD == 'fully_scan':
             lines = self.slice.fully_scan()
             glNewList(SLICE_LIST_ID, GL_COMPILE)
             glBegin(GL_LINES)
@@ -68,30 +84,29 @@ class SliceCanvas(glcanvas.GLCanvas):
                     glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
             glEnd()
             glEndList()
-        elif SLICE_METHOD == 'int_scan':
-            lines = self.slice.int_scan()
+        elif SLICE_METHOD == 'shape':
+            lines = self.slice.get_shape()
             glNewList(SLICE_LIST_ID, GL_COMPILE)
             glBegin(GL_LINES)
             glColor3d(1, 1, 1)
+            i = 0.0
             for line in lines:
                 for p in line:
+                    glColor3d(i / len(lines), i / len(lines), 1)
                     glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+                i += 1.0
             glEnd()
             glEndList()
         elif SLICE_METHOD == 'loops':
             loops = self.slice.get_loops()
             glNewList(SLICE_LIST_ID, GL_COMPILE)
-            for loop in loops[0]:
-                glBegin(GL_POLYGON)
-                glColor3d(1, 1, 1)
+            for loop in loops:
+                glBegin(GL_LINE_LOOP)
+                i = 0.0
                 for p in loop:
+                    glColor3d(i / len(loop), i / len(loop), 1)
                     glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
-                glEnd()
-            for loop in loops[1]:
-                glBegin(GL_POLYGON)
-                glColor3d(0, 0, 0)
-                for p in loop:
-                    glVertex(convertXToOpenGL(p.x), convertYToOpenGL(p.y))
+                    i += 1.0
                 glEnd()
             glEndList()
         else:
@@ -113,7 +128,6 @@ class SliceCanvas(glcanvas.GLCanvas):
         try:
             wx.PaintDC(self)
         except:
-            print 'error in wx.PaintDC(self)'
             pass
         if self.slice:
             self.SetCurrent()
@@ -317,7 +331,7 @@ class ControlPanel(wx.Panel):
 
         # Adding the dimension panel
         dimension_sizer = self.create_dimension_sizer()
-        sizer.Add(dimension_sizer, 0, wx.EXPAND|wx.ALIGN_CENTER)
+        sizer.Add(dimension_sizer, 0, wx.EXPAND | wx.ALIGN_CENTER)
 
         # Adding free space
         sizer.Add((10,10))
@@ -325,6 +339,13 @@ class ControlPanel(wx.Panel):
         # Adding the direction panel - combo-box
         direction_sizer = self.create_direction_sizer()
         sizer.Add(direction_sizer, 0, wx.EXPAND)
+
+        # Adding free space
+        sizer.Add((10,10))
+
+        # Adding the zoom panel
+        zoom_sizer = self.create_zoom_sizer()
+        sizer.Add(zoom_sizer, 0, wx.EXPAND)
 
         # Adding free space
         sizer.Add((10,10))
@@ -352,6 +373,19 @@ class ControlPanel(wx.Panel):
         self.txt_fields['xsize'].SetValue(str(dimension['xsize']))
         self.txt_fields['ysize'].SetValue(str(dimension['ysize']))
         self.txt_fields['zsize'].SetValue(str(dimension['zsize']))
+
+    def create_zoom_sizer(self):
+        box = wx.StaticBox(self, label="Zoom in ... times")
+        sizer = wx.StaticBoxSizer(box, wx.HORIZONTAL)
+
+        zoom_value = wx.TextCtrl(self, size=(70, -1))
+        button_apply = wx.Button(self, -1, "Apply")
+        button_apply.Bind(wx.EVT_BUTTON, self.parent.onZoom)
+        self.buttons['apply'] = button_apply
+        self.txt_fields['zoom_value'] = zoom_value
+        sizer.Add(zoom_value)
+        sizer.Add(button_apply)
+        return sizer
 
     def create_direction_sizer(self):
         box = wx.StaticBox(self, label="Direction")
@@ -464,6 +498,12 @@ class MainFrame(wx.Frame):
         print "There are %d facets in the model" % len(self.model.facets)
 
     def set_slice(self, z):
+        slice = slice_utils.Slice(self.model, z, ASRT)
+        self.slice_canvas.set_slice(slice)
+        # Check if project_frame exist before setting the slice
+        if self.projector_frame:
+            self.projector_frame.canvas.set_slice(slice)
+    '''
         try:
             slice = slice_utils.Slice(self.model, z, ASRT)
             self.slice_canvas.set_slice(slice)
@@ -473,7 +513,7 @@ class MainFrame(wx.Frame):
         except:
             print 'failed in slice'
             self.stop_timer()
-
+    '''
     def stop_timer(self):
             self.timer.Stop()
             self.left_panel.buttons['all'].SetLabel("Start slicing")
@@ -486,8 +526,7 @@ class MainFrame(wx.Frame):
             self.status_bar.SetStatusText(path)
             try:
                 model = stl_utils.StlModel(path)
-                zoom = 300 / model.max_size()
-                model.zoom(zoom)
+                model.centering()
             except:
                 wx.MessageBox("Cannot open " + path, 'Error')
             else:
@@ -498,6 +537,11 @@ class MainFrame(wx.Frame):
 
         dlg.Destroy()
         self.Refresh()
+
+    def onZoom(self, event):
+        zoom = float(self.left_panel.txt_fields['zoom_value'].Value)
+        self.model.zoom(zoom)
+        self.left_panel.set_dimensions(self.model.ex)
 
     def onSlice(self, event):
         if self.model is None:
@@ -557,8 +601,6 @@ class ProjectorFrame(wx.Frame):
 
 
 
-
-
 class MainApp(wx.App):
 
     def __init__(self, redirect=False, filename=None):
@@ -571,5 +613,6 @@ class MainApp(wx.App):
         return True
 
 if __name__ == '__main__':
+    open('sliser.log', 'w')
     app = MainApp()
     app.MainLoop()

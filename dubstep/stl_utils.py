@@ -206,6 +206,18 @@ class StlModel:
             f.zoom_z(scale)
         self.update()
 
+    def add_x(self, v):
+        for f in self.facets:
+            f.add_x(v)
+
+    def add_y(self, v):
+        for f in self.facets:
+            f.add_y(v)
+
+    def add_z(self, v):
+        for f in self.facets:
+            f.add_z(v)
+
     def zoom(self, scale):
         for f in self.facets:
             f.zoom(scale)
@@ -216,3 +228,9 @@ class StlModel:
         for v in (self.ex['minx'], self.ex['maxx'], self.ex['miny'], self.ex['maxy'], self.ex['minz'], self.ex['maxz']):
             max_v = max(max_v, abs(v))
         return max_v
+
+    def centering(self):
+        self.add_x(-self.ex['xcenter'])
+        self.add_y(-self.ex['ycenter'])
+        self.add_z(-self.ex['zcenter'])
+        self.update()

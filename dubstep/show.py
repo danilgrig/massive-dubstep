@@ -160,8 +160,8 @@ class GLFrame(wx.Frame):
         try:
             slice = Slice(self.model, 240)
             glClear(GL_COLOR_BUFFER_BIT)
-            self.draw_int_scan(slice)
-            #self.draw_full_scan(slice)
+            #self.draw_int_scan(slice)
+            self.draw_full_scan(slice)
         except SizeSliceError:
             print "Cant slice model"
             exit(0)

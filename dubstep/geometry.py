@@ -29,27 +29,35 @@ def dot(v1, v2):
 
 def counter_clock_wise(loop):
     assert len(loop) > 2
-    p1 = loop[0]
-    p2 = loop[1]
+    p1 = loop[-2]
+    p2 = loop[-1]
     angle = 0
-    for p in loop[2:]:
-        l1 = p1.dist(p2)
-        l2 = p2.dist(p)
-        cos = dot(Vector3(p2, p1), Vector3(p, p2)) / (l1 * l2)
+    deltas = []
+    for p3 in loop:
+        v1 = Vector3(p2, p1)
+        v2 = Vector3(p3, p2)
+        l = v1.len() * v2.len()
+        cos = dot(v1, v2) / l
         cos = min(cos, 1.0)
-        sin = cross2(Vector3(p2, p1), Vector3(p, p2)) / (l1 * l2)
+        sin = cross2(v1, v2) / l
 
         assert not equal(sin, 0) or cos > 0
+        delta = 0.0
         if equal(sin, 0.0):
-            angle += 0.0
-        elif sin > 0:
-            angle += math.degrees(math.acos(cos))
+            pass
+        elif sin > 0.0:
+            delta = math.degrees(math.acos(cos))
         else:
-            angle -= math.degrees(math.acos(cos))
+            delta = -math.degrees(math.acos(cos))
 
+        deltas.append((delta, p1, p2, p3))
+        angle += delta
         p1 = p2
-        p2 = p
+        p2 = p3
 
+    print angle
+    if abs(angle) < 100:
+        logging.error("angle = %.3f" % angle)
     return angle > 0
 
 
@@ -222,6 +230,9 @@ class Vector3:
         s = 'Vector3(%f, %f, %f) ' % (self.x, self.y, self.z)
         return s
 
+    def len(self):
+        return math.sqrt(self.x * self.x + self.y * self.y + self.z * self.z)
+
     def __idiv__(self, r):
         #if equal(r, 0):
         #    r = 1
@@ -323,6 +334,18 @@ class Facet:
     def zoom_z(self, scale):
         for p in self:
             p.z *= scale
+
+    def add_x(self, v):
+        for p in self:
+            p.x += v
+
+    def add_y(self, v):
+        for p in self:
+            p.y += v
+
+    def add_z(self, v):
+        for p in self:
+            p.z += v
 
     def isIntersect(self, z):
         if self >= z or self <= z:
