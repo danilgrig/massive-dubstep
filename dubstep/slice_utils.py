@@ -9,7 +9,7 @@ logging.basicConfig(format=u'%(levelname)-8s [%(asctime)s] %(message)s',
 
 STEP       = 0.5
 CORRECTION = 0.001
-MAXSIZE    = 350
+MAXSIZE    = 200
 MAXFACETS  = 30000
 
 
@@ -35,9 +35,6 @@ class Slice:
         self.ex = {'minx': MAXSIZE, 'maxx': -MAXSIZE,
                    'miny': MAXSIZE, 'maxy': -MAXSIZE}
 
-        if model.max_size() > MAXSIZE:
-            logging.error("Cant slice %.2f model. The max size is %.2f" % (model.max_size(), MAXSIZE))
-            raise SizeSliceError("Cant slice so big model")
         if len(model.facets) > MAXFACETS:
             logging.error("Cant slice %d facets. The max supposed numbers of facets is %.2f" %
                           (len(model.facets), MAXFACETS))
@@ -55,9 +52,18 @@ class Slice:
                 self.ex['miny'] = min(self.ex['miny'], p.y)
                 self.ex['maxy'] = max(self.ex['maxy'], p.y)
 
+        if self.max_size() > MAXSIZE:
+            logging.error("Cant slice %.2f model. The max size is %.2f" % (self.max_size(), MAXSIZE))
+            raise SizeSliceError("Cant slice so big model")
+
         self.sorted_y = []
         self.tree_x = IntervalTree(0)
         print "lines in slice: %d" % len(self.lines)
+
+    def max_size(self):
+        x = max(-self.ex['minx'], self.ex['maxx'])
+        y = max(-self.ex['miny'], self.ex['maxy'])
+        return max(x, y)
 
     def __len__(self):
         return len(self.lines)

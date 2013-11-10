@@ -26,11 +26,11 @@ def convertYToOpenGL(y):
 '''
 
 def convertXToOpenGL(x):
-    return (x) / 400
+    return (x) / 200
 
 
 def convertYToOpenGL(y):
-    return (y) / 400
+    return (y) / 200
 
 MODEL_LIST_ID = 1000
 SLICE_LIST_ID = 1001
@@ -123,6 +123,9 @@ class SliceCanvas(glcanvas.GLCanvas):
         self.Refresh()
         event.Skip()
 
+    def clear(self):
+        self.slice = None
+        self.SwapBuffers()
 
     def onPaint(self, event=None):
         try:
@@ -135,16 +138,6 @@ class SliceCanvas(glcanvas.GLCanvas):
             glCallList(SLICE_LIST_ID)
             self.SwapBuffers()
         else:
-#            pass
-#            self.SetCurrent()
-#            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-#            glBegin(GL_POLYGON)
-#            glColor3d(1, 0, 1)
-#            glVertex(-0.9, -0.9)
-#            glVertex(0.9, -0.9)
-#            glVertex(0.9, 0.9)
-#            glVertex(-0.9, 0.9)
-#            glEnd()
             self.SwapBuffers()
 
 
@@ -154,6 +147,8 @@ class ModelCanvas(glcanvas.GLCanvas):
         glcanvas.GLCanvas.__init__(self, parent, -1, size=parent.Size)
         self.parent = parent
         self.model = None
+        self.ex = None
+        self.direction = ''
         self.lastx = self.x = 30
         self.lasty = self.y = 30
         self.xangle = 0
@@ -169,6 +164,9 @@ class ModelCanvas(glcanvas.GLCanvas):
 
     def set_model(self, model):
         self.model = model
+        self.ex = model.ex.copy()
+        self.ex = model.ex
+        self.direction = model.direction
 
         glNewList(MODEL_LIST_ID, GL_COMPILE)
         glColor(1, 0, 0)
@@ -204,19 +202,20 @@ class ModelCanvas(glcanvas.GLCanvas):
             # Rotate model
             glRotatef(self.xangle, 1, 0, 0)
             glRotatef(self.yangle, 0, 1, 0)
+
             # Move model to origin
-            if self.model.direction == "+Z":
-                glTranslatef(-self.model.ex['xcenter'], -self.model.ex['ycenter'], -self.model.ex['zcenter'])
-            elif self.model.direction == "-Z":
-                glTranslatef(-self.model.ex['xcenter'], -self.model.ex['ycenter'], self.model.ex['zcenter'])
-            elif self.model.direction == "+Y":
-                glTranslatef(-self.model.ex['zcenter'], -self.model.ex['xcenter'], -self.model.ex['ycenter'])
-            elif self.model.direction == "-Y":
-                glTranslatef(-self.model.ex['zcenter'], self.model.ex['xcenter'], -self.model.ex['ycenter'])
-            elif self.model.direction == "+X":
-                glTranslatef(-self.model.ex['ycenter'], -self.model.ex['zcenter'], -self.model.ex['xcenter'])
-            elif self.model.direction == "-X":
-                glTranslatef(self.model.ex['ycenter'], -self.model.ex['zcenter'], -self.model.ex['xcenter'])
+            if self.direction == "+Z":
+                glTranslatef(-self.ex['xcenter'], -self.ex['ycenter'], -self.ex['zcenter'])
+            elif self.direction == "-Z":
+                glTranslatef(-self.ex['xcenter'], -self.ex['ycenter'], self.ex['zcenter'])
+            elif self.direction == "+Y":
+                glTranslatef(-self.ex['zcenter'], -self.ex['xcenter'], -self.ex['ycenter'])
+            elif self.direction == "-Y":
+                glTranslatef(-self.ex['zcenter'], self.ex['xcenter'], -self.ex['ycenter'])
+            elif self.direction == "+X":
+                glTranslatef(-self.ex['ycenter'], -self.ex['zcenter'], -self.ex['xcenter'])
+            elif self.direction == "-X":
+                glTranslatef(self.ex['ycenter'], -self.ex['zcenter'], -self.ex['xcenter'])
 
             glCallList(MODEL_LIST_ID)
             self.SwapBuffers()
@@ -498,25 +497,21 @@ class MainFrame(wx.Frame):
         print "There are %d facets in the model" % len(self.model.facets)
 
     def set_slice(self, z):
-        slice = slice_utils.Slice(self.model, z, ASRT)
-        self.slice_canvas.set_slice(slice)
-        # Check if project_frame exist before setting the slice
-        if self.projector_frame:
-            self.projector_frame.canvas.set_slice(slice)
-    '''
         try:
             slice = slice_utils.Slice(self.model, z, ASRT)
             self.slice_canvas.set_slice(slice)
             # Check if project_frame exist before setting the slice
             if self.projector_frame:
                 self.projector_frame.canvas.set_slice(slice)
+        except slice_utils.SizeSliceError:
+            wx.MessageBox("Cant slice so big model. The max size is 400 mm", 'Error')
         except:
             print 'failed in slice'
             self.stop_timer()
-    '''
+
     def stop_timer(self):
-            self.timer.Stop()
-            self.left_panel.buttons['all'].SetLabel("Start slicing")
+        self.timer.Stop()
+        self.left_panel.buttons['all'].SetLabel("Start slicing")
 
     def onOpen(self, event):
         wildcard = "CAD std files (*.stl)|*.stl|All files (*.*)|*.*"
@@ -530,10 +525,12 @@ class MainFrame(wx.Frame):
             except:
                 wx.MessageBox("Cannot open " + path, 'Error')
             else:
+                self.slice_canvas.clear()
                 self.set_model(model)
                 self.left_panel.txt_fields["z"].SetLabel("%.2f" % 0.01)
                 self.left_panel.txt_fields["dz"].SetLabel("%.2f" % 5)
                 self.left_panel.txt_fields["dt"].SetLabel("%d" % 200)
+                self.left_panel.txt_fields["zoom_value"].SetLabel("%d" % 1)
 
         dlg.Destroy()
         self.Refresh()
@@ -542,6 +539,11 @@ class MainFrame(wx.Frame):
         zoom = float(self.left_panel.txt_fields['zoom_value'].Value)
         self.model.zoom(zoom)
         self.left_panel.set_dimensions(self.model.ex)
+        z = float(self.left_panel.txt_fields["z"].Value)
+        z *= zoom
+        self.z = z
+        self.left_panel.txt_fields["z"].SetLabel("%.2f" % self.z)
+        self.set_slice(z + self.model.ex['minz'])
 
     def onSlice(self, event):
         if self.model is None:
@@ -596,9 +598,11 @@ class MainFrame(wx.Frame):
 
 class ProjectorFrame(wx.Frame):
     def __init__(self, parent):
-        wx.Frame.__init__(self, None, size=(500,500), title='Projector Frame')
+        wx.Frame.__init__(self, None, size=wx.DefaultSize, title='Projector Frame')
+        self.SetPosition((wx.Display(1).GetGeometry()[0], 0))
+        self.ShowFullScreen(True)
         self.canvas = SliceCanvas(self)
-
+        self.canvas.clear()
 
 
 class MainApp(wx.App):
